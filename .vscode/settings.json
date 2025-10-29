@@ -1,0 +1,6 @@
+{
+    "sonarlint.connectedMode.project": {
+        "connectionId": "syngenta-digital",
+        "projectKey": "daplug-ddb"
+    }
+}

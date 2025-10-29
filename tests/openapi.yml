@@ -1,0 +1,205 @@
+components:
+    schemas:
+        test-es-mapper-model:
+            type: object
+            properties:
+                company_name:
+                    type: string
+                    minLength: 1
+                company_email:
+                    type: string
+                    format: email
+                address1:
+                    type: string
+                    minLength: 1
+                address2:
+                    type: string
+                    minLength: 1
+                city:
+                    type: string
+                    minLength: 1
+                state:
+                    type: string
+                    minLength: 1
+                zipcode:
+                    type: string
+                    minLength: 1
+                phone:
+                    type: string
+                    minLength: 1
+                salesforce_id:
+                    type: string
+                    minLength: 1
+                sap_id:
+                    type: string
+                    minLength: 1
+                active:
+                    type: boolean
+                created:
+                    type: string
+                    format: date-time
+                modified:
+                    type: string
+                    format: date-time
+                company_type:
+                    type: string
+                    enum:
+                    - grain-receiver
+                    - reseller
+                    - 3PO
+                geocodes:
+                    type: array
+                details:
+                    type: array
+                    items:
+                        type: object
+                        properties:
+                            details_name:
+                                type: string
+                            details_value:
+                                type: string
+        test-elasticsearch-user-model:
+            type: object
+            properties:
+                user_id:
+                    type: string
+                email:
+                    type: string
+                    format: email
+                first:
+                    type: string
+                last:
+                    type: string
+                phone:
+                    type: number
+        test-postgres-user-model:
+                type: object
+                properties:
+                    user_id:
+                        type: string
+                    email:
+                        type: string
+                    first:
+                        type: number
+                    last:
+                        type: number
+        test-postgres-address-model:
+            type: object
+            properties:
+                address_id:
+                    type: string
+                user_id:
+                    type: string
+                address:
+                    type: string
+                city:
+                    type: string
+                state:
+                    type: string
+                zipcode:
+                    type: string
+        test-redshift-user-model:
+            type: object
+            properties:
+                user_id:
+                    type: string
+                email:
+                    type: string
+                first:
+                    type: number
+                last:
+                    type: number
+        test-redshift-address-model:
+            type: object
+            properties:
+                address_id:
+                    type: string
+                user_id:
+                    type: string
+                address:
+                    type: string
+                city:
+                    type: string
+                state:
+                    type: string
+                zipcode:
+                    type: string
+        test-dynamo-model:
+            type: object
+            properties:
+                test_id:
+                    type: string
+                test_query_id:
+                    type: string
+                object_key:
+                    type: object
+                    properties:
+                        string_key:
+                            type: string
+                array_number:
+                    type: array
+                    items:
+                        type: number
+                array_objects:
+                    type: array
+                    items:
+                        type: object
+                        properties:
+                            array_string_key:
+                                type: string
+                            array_number_key:
+                                type: number
+                created:
+                    type: string
+                    format: date-time
+                modified:
+                    type: string
+                    format: date-time
+        test-mongo-model:
+            type: object
+            properties:
+                test_id:
+                    type: string
+                test_query_id:
+                    type: string
+                object_key:
+                    type: object
+                    properties:
+                        string_key:
+                            type: string
+                array_number:
+                    type: array
+                    items:
+                        type: number
+                array_objects:
+                    type: array
+                    items:
+                        type: object
+                        properties:
+                            array_string_key:
+                                type: string
+                            array_number_key:
+                                type: number
+                created:
+                    type: string
+                    format: date-time
+                modified:
+                    type: string
+                    format: date-time
+        v1-test-request:
+            allOf:
+            - $ref: "#/components/schemas/test-dynamo-model"
+            - required:
+                - test_id
+                - object_key
+                - array_number
+                - array_objects
+        v1-test-fail-request:
+            allOf:
+            - $ref: "#/components/schemas/test-dynamo-model"
+            - required:
+                - test_id
+                - object_key
+                - array_number
+                - array_objects
+                - fail_id
