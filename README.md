@@ -1,4 +1,4 @@
-# daplug-ddb
+# 🔌 daplug-ddb
 
 > **Schema-Driven DynamoDB Normalization & Event Publishing for Python**
 
@@ -11,11 +11,7 @@
 [![License](https://img.shields.io/badge/license-apache%202.0-blue)](LICENSE)
 [![Contributions](https://img.shields.io/badge/contributions-welcome-blue)](https://github.com/paulcruse3/daplug-ddb/issues)
 
-`daplug-ddb` is a lightweight package that extracts the DynamoDB adapter from the
-Trellis (syngenta_digital_dta) project and reimagines it as a focused,
-installable library. It provides schema-aware CRUD helpers, batch utilities, and
-optional SNS publishing so you can treat DynamoDB as a structured datastore
-without rewriting boilerplate for every project.
+`daplug-ddb` is a lightweight package that provides schema-aware CRUD helpers, batch utilities, and optional SNS publishing so you can treat DynamoDB as a structured datastore without rewriting boilerplate for every project.
 
 ## ✨ Key Features
 
@@ -28,8 +24,6 @@ without rewriting boilerplate for every project.
   and handle chunking for you.
 - **SNS Integration** – Optional event publishing for every write operation so
   downstream systems stay in sync.
-- **Drop-in Compatibility** – Exposes a familiar `adapter(engine="dynamodb", …)`
-  factory mirroring the original Trellis API.
 
 ## 🚀 Quick Start
 
@@ -92,6 +86,34 @@ adapter.update(
 )
 ```
 
+### Hash/Range Prefixing
+
+```python
+adapter = daplug_ddb.adapter(
+    engine="dynamodb",
+    table="tenant-config",
+    endpoint="https://dynamodb.us-east-2.amazonaws.com",
+    schema="TenantModel",
+    schema_file="openapi.yml",
+    identifier="tenant_id",
+    hash_key="tenant_id",
+    hash_prefix="tenant#",
+    range_key="sort_key",
+    range_prefix="config#",
+)
+
+item = adapter.create(data={
+    "tenant_id": "abc",
+    "sort_key": "default",
+    "modified": "2024-01-01",
+})
+# DynamoDB stores tenant_id as "tenant#abc", but the adapter returns "abc"
+```
+
+When prefixes are configured, the adapter automatically applies them on the way
+into DynamoDB (including batch operations and deletes) and removes them before
+returning data or publishing SNS events.
+
 ### Batched Writes
 
 ```python
@@ -109,6 +131,53 @@ adapter.batch_delete(
         for idx in range(100)
     ]
 )
+```
+
+### Idempotent Operations
+
+```python
+adapter = daplug_ddb.adapter(
+    engine="dynamodb",
+    table="orders",
+    endpoint="https://dynamodb.us-east-2.amazonaws.com",
+    schema="OrderModel",
+    schema_file="openapi.yml",
+    identifier="order_id",
+    idempotence_key="modified",
+)
+
+updated = adapter.update(
+    data={"order_id": "abc123", "modified": "2024-02-01"},
+    operation="get",
+    query={"Key": {"order_id": "abc123"}},
+)
+```
+
+The adapter fetches the current item, merges the update, and executes a
+conditional `PutItem` to ensure the stored `modified` value still matches
+what was read. If another writer changes the record first, the operation
+fails with a conditional check error rather than overwriting the data.
+
+```txt
+Client Update Request
+        │
+        ▼
+  [Adapter.fetch]
+        │  (reads original item)
+        ▼
+┌──────────────────────────┐
+│ Original Item            │
+│ idempotence_key = "v1"  │
+└──────────────────────────┘
+        │ merge + map
+        ▼
+PutItem(Item=…, ConditionExpression=Attr(idempotence_key).eq("v1"))
+        │
+   ┌────┴───────┐
+   │            │
+   ▼            ▼
+Success     ConditionalCheckFailed
+          (another writer changed key)
 ```
 
 ### SNS Publishing
@@ -160,8 +229,6 @@ pipenv run test
 pipenv run integrations
 ```
 
-## 🔄 Idempotence Key Explained
-
 Supplying an `idempotence_key` enables optimistic concurrency for updates and overwrites. The adapter reads the original item, captures the key’s value, and issues a `PutItem` with a `ConditionExpression` asserting the value is unchanged. If another writer updates the record first, DynamoDB returns a conditional check failure instead of silently overwriting data.
 
 ```txt
@@ -206,6 +273,7 @@ pipenv run lint
 daplug-ddb/
 ├── daplug_ddb/
 │   ├── adapter.py           # DynamoDB adapter implementation
+│   ├── prefixer.py          # DynamoDB prefixer implementation
 │   ├── common/              # Shared helpers (merging, schema loading, logging)
 │   └── __init__.py          # Public adapter factory & exports
 ├── tests/

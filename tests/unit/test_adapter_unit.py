@@ -93,3 +93,68 @@ def test_batch_insert_rejects_non_list_input() -> None:
 
     with pytest.raises(BatchItemException):
         adapter.batch_insert(data=(1, 2, 3))
+
+
+def test_insert_applies_configured_prefixes() -> None:
+    table = StubTable()
+    adapter = _create_adapter(
+        table,
+        hash_key="test_id",
+        hash_prefix="tenant#",
+        range_key="test_query_id",
+        range_prefix="type#",
+    )
+
+    result = adapter.insert(data=build_test_item())
+
+    stored_item = table.put_calls[-1]["Item"]
+    assert stored_item["test_id"] == "tenant#abc123"
+    assert stored_item["test_query_id"] == "type#def345"
+    assert result["test_id"] == "abc123"
+
+
+def test_get_removes_configured_prefixes() -> None:
+    table = StubTable()
+    table.get_item_response = {
+        "test_id": "tenant#abc123",
+        "test_query_id": "type#def345",
+        "modified": "2020-10-05",
+    }
+    adapter = _create_adapter(
+        table,
+        hash_key="test_id",
+        hash_prefix="tenant#",
+        range_key="test_query_id",
+        range_prefix="type#",
+    )
+
+    item = adapter.get(query={"Key": {"test_id": "abc123", "test_query_id": "def345"}})
+
+    stored_key = table.get_calls[-1]["Key"]
+    assert stored_key["test_id"] == "tenant#abc123"
+    assert stored_key["test_query_id"] == "type#def345"
+    assert item["test_id"] == "abc123"
+    assert item["test_query_id"] == "def345"
+
+
+def test_update_applies_prefixes() -> None:
+    table = StubTable()
+    table.get_item_response = build_test_item()
+    adapter = _create_adapter(
+        table,
+        hash_key="test_id",
+        hash_prefix="tenant#",
+        range_key="test_query_id",
+        range_prefix="type#",
+    )
+
+    updated = build_test_item(modified="2020-10-06")
+    adapter.update(
+        data=updated,
+        operation="get",
+        query={"Key": {"test_id": "abc123", "test_query_id": "def345"}},
+    )
+
+    stored_item = table.put_calls[-1]["Item"]
+    assert stored_item["test_id"] == "tenant#abc123"
+    assert stored_item["test_query_id"] == "type#def345"

@@ -52,6 +52,9 @@ class StubTable:
         self.delete_calls: List[Dict[str, Any]] = []
         self.batch_put_calls: List[Dict[str, Any]] = []
         self.batch_delete_calls: List[Dict[str, Any]] = []
+        self.get_calls: List[Dict[str, Any]] = []
+        self.query_calls: List[Dict[str, Any]] = []
+        self.scan_calls: List[Dict[str, Any]] = []
         self.get_item_response: DynamoItem = build_test_item()
         self.query_response: DynamoItems = [build_test_item()]
         self.scan_response: DynamoItems = [build_test_item()]
@@ -66,12 +69,15 @@ class StubTable:
         return {"Attributes": kwargs.get("Key", {})}
 
     def get_item(self, **kwargs: Any) -> Dict[str, Any]:
+        self.get_calls.append(kwargs)
         return {"Item": copy.deepcopy(self.get_item_response)}
 
     def scan(self, **kwargs: Any) -> Dict[str, Any]:
+        self.scan_calls.append(kwargs)
         return {"Items": copy.deepcopy(self.scan_response)}
 
     def query(self, **kwargs: Any) -> Dict[str, Any]:
+        self.query_calls.append(kwargs)
         return {"Items": copy.deepcopy(self.query_response)}
 
     def batch_writer(self) -> StubBatchWriter:
