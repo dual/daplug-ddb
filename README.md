@@ -167,7 +167,7 @@ Client Update Request
         ▼
 ┌──────────────────────────┐
 │ Original Item            │
-│ idempotence_key = "v1"  │
+│ idempotence_key = "v1"   │
 └──────────────────────────┘
         │ merge + map
         ▼
@@ -240,7 +240,7 @@ Client Update Request
         ▼
 ┌──────────────────────────┐
 │ Original Item            │
-│ idempotence_key = "v1"  │
+│ idempotence_key = "v1"   │
 └──────────────────────────┘
         │ merge + map
         ▼
