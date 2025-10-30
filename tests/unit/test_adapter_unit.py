@@ -16,7 +16,6 @@ from tests.unit.mocks import StubTable, build_test_item
 
 def _create_adapter(table: StubTable, **overrides) -> DynamodbAdapter:
     params = {
-        "engine": "dynamodb",
         "table": "stub-table",
         "endpoint": None,
         "schema": "test-dynamo-model",

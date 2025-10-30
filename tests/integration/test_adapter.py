@@ -23,7 +23,6 @@ class DynamoDBAdapterTest(unittest.TestCase):
         self.mock_table = MockTable(table_name=table_name)
         self.mock_table.setup_test_table()
         self.adapter = daplug_ddb.adapter(
-            engine="dynamodb",
             table=table_name,
             endpoint="http://localhost:4000",
             schema="test-dynamo-model",
@@ -303,7 +302,6 @@ class DynamoDBAdapterTest(unittest.TestCase):
 
     def test_adapter_update_without_idempotence_key(self):
         adapter = daplug_ddb.adapter(
-            engine="dynamodb",
             table="unittestsort",  # table already exists from setUp
             endpoint="http://localhost:4000",
             schema="test-dynamo-model",

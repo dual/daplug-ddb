@@ -6,11 +6,9 @@ from .adapter import BatchItemException, DynamodbAdapter
 
 
 def adapter(**kwargs: Any) -> DynamodbAdapter:
-    """Factory helper mirroring legacy entry point for DynamoDB adapters."""
+    """Factory helper for creating a DynamoDB adapter."""
 
-    engine = kwargs.pop("engine", "dynamodb")
-    if engine and engine != "dynamodb":  # preserve deterministic erroring for unsupported engines
-        raise ValueError(f"engine {engine} not supported; only 'dynamodb' is available")
+    kwargs.pop("engine", None)  # allow legacy callers to pass engine without effect
     return DynamodbAdapter(**kwargs)
 
 

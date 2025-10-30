@@ -42,7 +42,6 @@ pip install daplug-ddb
 import daplug_ddb
 
 adapter = daplug_ddb.adapter(
-    engine="dynamodb",
     table="example-table",
     endpoint="https://dynamodb.us-east-2.amazonaws.com", # optional, will use AWS conventional env vars if using on lambda
     schema="ExampleModel",
@@ -90,7 +89,6 @@ adapter.update(
 
 ```python
 adapter = daplug_ddb.adapter(
-    engine="dynamodb",
     table="tenant-config",
     endpoint="https://dynamodb.us-east-2.amazonaws.com",
     schema="TenantModel",
@@ -137,7 +135,6 @@ adapter.batch_delete(
 
 ```python
 adapter = daplug_ddb.adapter(
-    engine="dynamodb",
     table="orders",
     endpoint="https://dynamodb.us-east-2.amazonaws.com",
     schema="OrderModel",
@@ -184,7 +181,6 @@ Success     ConditionalCheckFailed
 
 ```python
 adapter = daplug_ddb.adapter(
-    engine="dynamodb",
     table="audit-table",
     schema="AuditModel",
     schema_file="openapi.yml",
