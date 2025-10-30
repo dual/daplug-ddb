@@ -10,6 +10,7 @@ import pytest
 import daplug_ddb
 from daplug_ddb.adapter import DynamodbAdapter
 from daplug_ddb.exception import BatchItemException
+from daplug_ddb.common.base_adapter import BaseAdapter
 
 from tests.unit.mocks import StubTable, build_test_item
 
@@ -73,17 +74,19 @@ def test_update_with_idempotence_key_sets_condition_expression() -> None:
     assert call_kwargs.get("ConditionExpression") is not None
 
 
-def test_update_with_missing_idempotence_value_raises() -> None:
+def test_update_with_missing_idempotence_value_skips_condition() -> None:
     table = StubTable()
     table.get_item_response = build_test_item()
     adapter = _create_adapter(table, idempotence_key="missing_key")
 
-    with pytest.raises(ValueError):
-        adapter.update(
-            data=build_test_item(),
-            operation="get",
-            query={"Key": {"test_id": "abc123", "test_query_id": "def345"}},
-        )
+    adapter.update(
+        data=build_test_item(),
+        operation="get",
+        query={"Key": {"test_id": "abc123", "test_query_id": "def345"}},
+    )
+
+    call_kwargs = table.put_calls[-1]
+    assert "ConditionExpression" not in call_kwargs
 
 
 def test_batch_insert_rejects_non_list_input() -> None:
@@ -92,6 +95,86 @@ def test_batch_insert_rejects_non_list_input() -> None:
 
     with pytest.raises(BatchItemException):
         adapter.batch_insert(data=(1, 2, 3))
+
+
+def test_update_raises_when_idempotence_value_changes_and_flag_set() -> None:
+    table = StubTable()
+    table.get_item_response = build_test_item(modified="2020-01-01")
+    adapter = _create_adapter(table, idempotence_key="modified", raise_idempotence_error=True)
+
+    with pytest.raises(ValueError):
+        adapter.update(
+            data=build_test_item(modified="2020-02-01"),
+            operation="get",
+            query={"Key": {"test_id": "abc123", "test_query_id": "def345"}},
+        )
+
+
+def test_update_allows_mismatched_idempotence_when_flag_false() -> None:
+    table = StubTable()
+    table.get_item_response = build_test_item(modified="2020-01-01")
+    adapter = _create_adapter(table, idempotence_key="modified", raise_idempotence_error=False)
+
+    adapter.update(
+        data=build_test_item(modified="2020-02-01"),
+        operation="get",
+        query={"Key": {"test_id": "abc123", "test_query_id": "def345"}},
+    )
+
+    call_kwargs = table.put_calls[-1]
+    assert call_kwargs["Item"]["modified"] == "2020-02-01"
+
+
+def test_update_use_latest_ignores_stale_payload() -> None:
+    table = StubTable()
+    table.get_item_response = build_test_item(modified="2020-02-01")
+    adapter = _create_adapter(
+        table,
+        idempotence_key="modified",
+        idempotence_use_latest=True,
+    )
+
+    result = adapter.update(
+        data=build_test_item(modified="2020-01-01"),
+        operation="get",
+        query={"Key": {"test_id": "abc123", "test_query_id": "def345"}},
+    )
+
+    assert result["modified"] == "2020-02-01"
+    assert table.put_calls == []
+
+
+def test_update_use_latest_raises_on_invalid_date() -> None:
+    table = StubTable()
+    table.get_item_response = build_test_item(modified="2020-02-01")
+    adapter = _create_adapter(
+        table,
+        idempotence_key="modified",
+        idempotence_use_latest=True,
+    )
+
+    with pytest.raises(ValueError):
+        adapter.update(
+            data=build_test_item(modified="not-a-date"),
+            operation="get",
+            query={"Key": {"test_id": "abc123", "test_query_id": "def345"}},
+        )
+
+
+def test_base_adapter_merges_sns_attributes() -> None:
+    base = BaseAdapter(
+        schema="TestSchema",
+        identifier="id",
+        sns_attributes={"custom": "value"},
+    )
+
+    formatted = base.create_format_attibutes(
+        "update", {"call": "value", "custom": "override"}
+    )
+
+    assert formatted["operation"]["StringValue"] == "update"
+    assert formatted["custom"]["StringValue"] == "override"
+    assert formatted["call"]["StringValue"] == "value"
 
 
 def test_insert_applies_configured_prefixes() -> None:

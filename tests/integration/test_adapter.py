@@ -271,6 +271,71 @@ class DynamoDBAdapterTest(unittest.TestCase):
         finally:
             self.adapter.table.put_item = original_put  # type: ignore[assignment]
 
+    def test_adapter_update_use_latest_ignores_stale_data(self):
+        adapter = daplug_ddb.adapter(
+            table=self.mock_table.table_name,
+            endpoint="http://localhost:4000",
+            schema="test-dynamo-model",
+            schema_file="tests/openapi.yml",
+            identifier="test_id",
+            idempotence_key="modified",
+            idempotence_use_latest=True,
+        )
+
+        stale_payload = self.mock_table.mock_data.copy()
+        stale_payload["modified"] = "2020-01-01"
+
+        result = adapter.update(
+            data=stale_payload,
+            operation="get",
+            query={"Key": {"test_id": "abc123", "test_query_id": "def345"}},
+        )
+
+        self.assertEqual(result["modified"], self.mock_table.mock_data["modified"])
+
+    def test_adapter_update_use_latest_accepts_newer_data(self):
+        adapter = daplug_ddb.adapter(
+            table=self.mock_table.table_name,
+            endpoint="http://localhost:4000",
+            schema="test-dynamo-model",
+            schema_file="tests/openapi.yml",
+            identifier="test_id",
+            idempotence_key="modified",
+            idempotence_use_latest=True,
+        )
+
+        newer_payload = self.mock_table.mock_data.copy()
+        newer_payload["modified"] = "2030-01-01"
+
+        result = adapter.update(
+            data=newer_payload,
+            operation="get",
+            query={"Key": {"test_id": "abc123", "test_query_id": "def345"}},
+        )
+
+        self.assertEqual(result["modified"], "2030-01-01")
+
+    def test_adapter_update_use_latest_invalid_date(self):
+        adapter = daplug_ddb.adapter(
+            table=self.mock_table.table_name,
+            endpoint="http://localhost:4000",
+            schema="test-dynamo-model",
+            schema_file="tests/openapi.yml",
+            identifier="test_id",
+            idempotence_key="modified",
+            idempotence_use_latest=True,
+        )
+
+        invalid_payload = self.mock_table.mock_data.copy()
+        invalid_payload["modified"] = "not-a-date"
+
+        with self.assertRaises(ValueError):
+            adapter.update(
+                data=invalid_payload,
+                operation="get",
+                query={"Key": {"test_id": "abc123", "test_query_id": "def345"}},
+            )
+
     def test_adapter_delete(self):
         new_data = {
             "test_id": "abc456-delete",

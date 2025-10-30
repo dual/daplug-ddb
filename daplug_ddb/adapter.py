@@ -1,5 +1,6 @@
 """DynamoDB adapter exposing normalized CRUD operations."""
 
+from datetime import datetime
 from functools import lru_cache
 from typing import Any, Dict, Iterable, Optional, Union
 
@@ -23,7 +24,9 @@ class DynamodbAdapter(BaseAdapter):
         self.schema_file: str = kwargs["schema_file"]
         self.schema: str = kwargs["schema"]
         self.identifier: str = kwargs["identifier"]
-        self.idempotence_key: Optional[str] = kwargs.get("idempotence_key")
+        self.idempotence_key: str = kwargs.get("idempotence_key", "")
+        self.raise_idempotence_error: bool = kwargs.get("raise_idempotence_error", False)
+        self.idempotence_use_latest: bool = kwargs.get("idempotence_use_latest", False)
         self.prefixer = DynamodbPrefixer(
             hash_key=kwargs.get("hash_key"),
             hash_prefix=kwargs.get("hash_prefix"),
@@ -57,13 +60,13 @@ class DynamodbAdapter(BaseAdapter):
         return response if kwargs.get("raw_scan") else response.get("Items", [])
 
     def get(self, **kwargs: Any) -> DynamoItem:
-        query = self._prefixed_query(kwargs.get("query"))
+        query = self.__prefixed_query(kwargs.get("query"))
         result: Dict[str, Any] = self.table.get_item(**query)
         cleaned = self.prefixer.remove_prefix(result.get("Item", {}))
         return cleaned if isinstance(cleaned, dict) else result.get("Item", {})
 
     def query(self, **kwargs: Any) -> Union[DynamoItems, Dict[str, Any]]:
-        prefixed_query = self._prefixed_query(kwargs.get("query"))
+        prefixed_query = self.__prefixed_query(kwargs.get("query"))
         response = self.table.query(**prefixed_query)
         cleaned = self.prefixer.remove_prefix(response)
         if kwargs.get("raw_query") and isinstance(cleaned, dict):
@@ -124,7 +127,7 @@ class DynamodbAdapter(BaseAdapter):
                     writer.put_item(Item=item)
 
     def delete(self, **kwargs: Any) -> DynamoItem:
-        query = self._prefixed_query(kwargs.get("query"))
+        query = self.__prefixed_query(kwargs.get("query"))
         query["ReturnValues"] = "ALL_OLD"
         result = self.table.delete_item(**query).get("Attributes", {})
         cleaned = self.prefixer.remove_prefix(result)
@@ -148,26 +151,51 @@ class DynamodbAdapter(BaseAdapter):
                     writer.delete_item(Key=item)
 
     def update(self, **kwargs: Any) -> DynamoItem:
-        original_data = self._get_original_data(**kwargs)
-        merged_data = merge(original_data, kwargs["data"], **kwargs)
+        original_data = self.__get_original_data(**kwargs)
+        data_to_store, response_template = self.__prepare_update_payload(original_data, kwargs)
+        if self.__should_use_latest(
+            original_data.get(self.idempotence_key), response_template.get(self.idempotence_key)
+        ):
+            return self.__clean_for_response(original_data)
+        put_kwargs = self.__build_put_kwargs(original_data.get(self.idempotence_key), data_to_store)
+        self.table.put_item(**put_kwargs)
+        cleaned_item = self.__clean_for_response(data_to_store)
+        super().publish("update", cleaned_item, **kwargs)
+        return cleaned_item
+
+    def __prepare_update_payload(
+        self, original_data: DynamoItem, update_kwargs: Dict[str, Any]
+    ) -> tuple[Dict[str, Any], Dict[str, Any]]:
+        merged_data = merge(original_data, update_kwargs["data"], **update_kwargs)
         updated_data = map_to_schema(merged_data, self.schema_file, self.schema)
         stored_item = self.prefixer.add_prefix(updated_data)
-        data_to_store = stored_item if isinstance(stored_item, dict) else updated_data
+        if isinstance(stored_item, dict):
+            return stored_item, self.__clean_for_response(stored_item)
+        return updated_data, updated_data
+
+    def __build_put_kwargs(self, original_value: Any, data_to_store: Dict[str, Any]) -> Dict[str, Any]:
         put_kwargs: Dict[str, Any] = {"Item": data_to_store}
-        if self.idempotence_key:
-            original_value = original_data.get(self.idempotence_key)
-            if original_value is None:
+        if not self.idempotence_key:
+            return put_kwargs
+        if original_value is None:
+            if self.raise_idempotence_error:
                 raise ValueError(
                     f"idempotence key '{self.idempotence_key}' not found in original item"
                 )
-            put_kwargs["ConditionExpression"] = Attr(self.idempotence_key).eq(original_value)
-        self.table.put_item(**put_kwargs)
-        cleaned = self.prefixer.remove_prefix(data_to_store)
-        cleaned_item = cleaned if isinstance(cleaned, dict) else updated_data
-        super().publish("update", cleaned_item if isinstance(cleaned_item, dict) else updated_data, **kwargs)
-        return cleaned_item if isinstance(cleaned_item, dict) else updated_data
+            return put_kwargs
+        if (
+            original_value != data_to_store.get(self.idempotence_key)
+            and self.raise_idempotence_error
+        ):
+            raise ValueError("update: idempotence key value has changed")
+        put_kwargs["ConditionExpression"] = Attr(self.idempotence_key).eq(original_value)
+        return put_kwargs
 
-    def _get_original_data(self, **kwargs: Any) -> DynamoItem:
+    def __clean_for_response(self, item: Dict[str, Any]) -> Dict[str, Any]:
+        cleaned = self.prefixer.remove_prefix(item)
+        return cleaned if isinstance(cleaned, dict) else item
+
+    def __get_original_data(self, **kwargs: Any) -> DynamoItem:
         if kwargs["operation"] == "get":
             original_data = self.get(**kwargs)
         else:
@@ -185,7 +213,7 @@ class DynamodbAdapter(BaseAdapter):
             raise ValueError("update: no data found to update")
         return original_data
 
-    def _prefixed_query(self, query: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    def __prefixed_query(self, query: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         if not query:
             return {}
         prefixed = dict(query)
@@ -200,3 +228,15 @@ class DynamodbAdapter(BaseAdapter):
             if isinstance(prefixed_key, dict):
                 prefixed["ExclusiveStartKey"] = prefixed_key
         return prefixed
+
+    def __should_use_latest(self, original_value: Any, new_value: Any) -> bool:
+        if not self.idempotence_use_latest or not self.idempotence_key:
+            return False
+        if original_value is None or new_value is None:
+            return False
+        try:
+            original_dt = datetime.fromisoformat(str(original_value))
+            new_dt = datetime.fromisoformat(str(new_value))
+        except ValueError as exc:
+            raise ValueError("idempotence_use_latest requires ISO date-compatible values") from exc
+        return original_dt > new_dt

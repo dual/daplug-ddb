@@ -155,6 +155,55 @@ conditional `PutItem` to ensure the stored `modified` value still matches
 what was read. If another writer changes the record first, the operation
 fails with a conditional check error rather than overwriting the data.
 
+Set `raise_idempotence_error=True` if you prefer the adapter to raise a
+`ValueError` instead of relying on DynamoDB's conditional failure. Leaving it
+at the default (`False`) allows you to detect conflicts without breaking the
+update flow.
+
+```python
+adapter = daplug_ddb.adapter(
+    table="orders",
+    schema="OrderModel",
+    schema_file="openapi.yml",
+    identifier="order_id",
+    idempotence_key="modified",
+    raise_idempotence_error=True,
+)
+```
+
+Enable `idempotence_use_latest=True` when you want the adapter to keep the
+most recent copy based on the timestamp stored in the idempotence key. Stale
+updates are ignored automatically.
+
+```python
+adapter = daplug_ddb.adapter(
+    table="orders",
+    schema="OrderModel",
+    schema_file="openapi.yml",
+    identifier="order_id",
+    idempotence_key="modified",
+    idempotence_use_latest=True,
+)
+````
+
+Stale updates are short-circuited before DynamoDB writes occur.
+
+```txt
+Client Update Request
+        │
+        ▼
+  [Adapter.fetch]
+        │  (reads original item)
+        ▼
+┌──────────────────────────┐
+│ Original Item            │
+│ modified = "2024-01-01"  │
+└──────────────────────────┘
+        │ merge + map
+        ▼
+PutItem rejected → original returned
+```
+
 ```txt
 Client Update Request
         │
@@ -179,6 +228,12 @@ Success     ConditionalCheckFailed
 
 ### SNS Publishing
 
+### Per-call SNS Attributes
+
+You can supply request-scoped SNS message attributes by passing 'sns_attributes'
+into any adapter operation (e.g. 'create', 'update', 'delete'). These merge
+with adapter defaults and schema-derived metadata.
+
 ```python
 adapter = daplug_ddb.adapter(
     table="audit-table",
@@ -190,11 +245,9 @@ adapter = daplug_ddb.adapter(
     sns_endpoint="https://sns.us-east-2.amazonaws.com",
     sns_attributes={"source": "daplug"},
 )
-
-adapter.delete(
-    query={
-        "Key": {"audit_id": "abc123", "version": "2024-01-01"}
-    }
+adapter.create(
+    data=item,
+    sns_attributes={"source": "billing", "priority": "high"},
 )
 # => publishes a formatted SNS event with schema metadata
 ```

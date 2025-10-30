@@ -24,7 +24,7 @@ class BaseAdapter:
         }
 
     def publish(self, db_operation: str, db_data: Dict[str, Any], **kwargs: Any) -> None:
-        attributes = self.create_format_attibutes(db_operation)
+        attributes = self.create_format_attibutes(db_operation, kwargs.get("sns_attributes", {}))
         self.publisher.publish(
             endpoint=self.sns_endpoint,
             arn=self.sns_arn,
@@ -34,11 +34,10 @@ class BaseAdapter:
             fifo_duplication_id=kwargs.get("fifo_duplication_id"),
         )
 
-    def create_format_attibutes(self, operation: str) -> MessageAttributes:
-        self.default_attributes["operation"] = operation
-        custom_attributes = self.get_attributes()
+    def create_format_attibutes(self, operation: str, call_attributes: dict) -> MessageAttributes:
+        combined = self.__combined_attributes(operation, call_attributes)
         formatted_attributes: MessageAttributes = {}
-        for key, value in custom_attributes.items():
+        for key, value in combined.items():
             if value is not None:
                 data_type = "String" if isinstance(value, str) else "Number"
                 formatted_attributes[key] = {
@@ -47,11 +46,25 @@ class BaseAdapter:
                 }
         return formatted_attributes
 
-    def get_attributes(self) -> Dict[str, Any]:
-        if self.sns_defaults and self.sns_custom:
-            return {**self.default_attributes, **self.sns_custom}
-        if not self.sns_defaults and self.sns_custom:
-            return self.sns_custom
-        if self.sns_defaults and not self.sns_custom:
-            return self.default_attributes
-        return {}
+    def __combined_attributes(self, operation: str, call_attributes: dict) -> Dict[str, Any]:
+        pieces = []
+        base: Dict[str, Any] = {}
+        if self.sns_defaults:
+            base.update(self.default_attributes)
+        base["operation"] = operation
+        pieces.append(base)
+
+        if self.sns_custom:
+            pieces.append(self.sns_custom)
+        if call_attributes:
+            pieces.append(call_attributes)
+
+        return self.__merge_attributes(*pieces)
+
+    def __merge_attributes(self, *dicts: Dict[str, Any]) -> Dict[str, Any]:
+        merged: Dict[str, Any] = {}
+        for data in dicts:
+            if not data:
+                continue
+            merged.update(data)
+        return merged
