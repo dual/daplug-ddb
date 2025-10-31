@@ -258,6 +258,140 @@ adapter.create(
 # => publishes a formatted SNS event with schema metadata
 ```
 
+## 📚 Method Reference
+
+Each adapter instance holds shared configuration such as `schema_file`, SNS
+defaults, and optional key prefixes. Pass the schema name (and any
+operation-specific overrides) when you invoke a method.
+
+```python
+adapter = daplug_ddb.adapter(
+    table="orders",
+    schema_file="openapi.yml",
+    identifier="order_id",
+    idempotence_key="modified",
+)
+```
+
+### `create` (wrapper around `insert`/`overwrite`)
+
+```python
+# default: behaves like insert with idempotence protection
+adapter.create(data=payload, schema="OrderModel")
+
+# explicit overwrite (upsert semantics)
+adapter.create(
+    operation="overwrite",
+    data=payload,
+    schema="OrderModel",
+)
+```
+
+### `insert`
+
+```python
+adapter.insert(data=payload, schema="OrderModel")
+```
+
+### `overwrite`
+
+```python
+adapter.overwrite(data=payload, schema="OrderModel")
+```
+
+### `get`
+
+```python
+adapter.get(
+    query={"Key": {"order_id": "abc123"}},
+    schema="OrderModel",
+)
+```
+
+### `query`
+
+```python
+adapter.query(
+    query={
+        "IndexName": "test_query_id",
+        "KeyConditionExpression": "test_query_id = :id",
+        "ExpressionAttributeValues": {":id": "def345"},
+    },
+    schema="OrderModel",
+)
+```
+
+### `scan`
+
+```python
+adapter.scan(schema="OrderModel")
+
+# raw DynamoDB response
+adapter.scan(raw_scan=True)
+```
+
+### `read`
+
+`read` delegates to `get`, `query`, or `scan` based on the
+`operation` kwarg.
+
+```python
+# single item
+adapter.read(operation="get", query={"Key": {"order_id": "abc123"}}, schema="OrderModel")
+
+# query
+adapter.read(
+    operation="query",
+    query={
+        "KeyConditionExpression": "test_query_id = :id",
+        "ExpressionAttributeValues": {":id": "def345"},
+    },
+    schema="OrderModel",
+)
+```
+
+### `update`
+
+```python
+adapter.update(
+    data={"order_id": "abc123", "modified": "2024-03-02"},
+    operation="get",
+    query={"Key": {"order_id": "abc123"}},
+    schema="OrderModel",
+)
+```
+
+### `delete`
+
+```python
+adapter.delete(query={"Key": {"order_id": "abc123"}})
+```
+
+### `batch_insert`
+
+```python
+adapter.batch_insert(data=[{...} for _ in range(10)], schema="OrderModel", batch_size=25)
+```
+
+### `batch_delete`
+
+```python
+adapter.batch_delete(data=[{...} for _ in range(10)], batch_size=25)
+```
+
+### Prefixing Helpers
+
+Include per-call prefix overrides whenever you need to scope keys.
+
+```python
+adapter.insert(
+    data=payload,
+    schema="OrderModel",
+    hash_key="order_id",
+    hash_prefix="tenant#",
+)
+```
+
 ## 🧪 Local Development
 
 ### Prerequisites
