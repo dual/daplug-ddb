@@ -22,10 +22,10 @@ class DynamoDBAdapterTest(unittest.TestCase):
         self.maxDiff = None  # pylint: disable=invalid-name
         self.mock_table = MockTable(table_name=table_name)
         self.mock_table.setup_test_table()
+        self.schema_args = {"schema": "test-dynamo-model"}
         self.adapter = daplug_ddb.adapter(
             table=table_name,
             endpoint="http://localhost:4000",
-            schema="test-dynamo-model",
             schema_file="tests/openapi.yml",
             identifier="test_id",
             idempotence_key="modified",
@@ -46,11 +46,12 @@ class DynamoDBAdapterTest(unittest.TestCase):
                     "test_query_id": "def345",
                 }
             },
+            **self.schema_args,
         )
         self.assertDictEqual(data, self.mock_table.mock_data)
 
     def test_adapter_read_scan(self):
-        data = self.adapter.read(operation="scan")
+        data = self.adapter.read(operation="scan", **self.schema_args)
         self.assertGreaterEqual(len(data), 1)
 
     def test_adapter_get(self):
@@ -61,6 +62,7 @@ class DynamoDBAdapterTest(unittest.TestCase):
                     "test_query_id": "def345",
                 }
             },
+            **self.schema_args,
         )
         self.assertDictEqual(data, self.mock_table.mock_data)
 
@@ -73,6 +75,7 @@ class DynamoDBAdapterTest(unittest.TestCase):
                 "KeyConditionExpression": "test_query_id = :test_query_id",
                 "ExpressionAttributeValues": {":test_query_id": "def345"},
             },
+            **self.schema_args,
         )
         self.assertDictEqual(data[0], self.mock_table.mock_data)
 
@@ -83,7 +86,8 @@ class DynamoDBAdapterTest(unittest.TestCase):
                 "Limit": 1,
                 "KeyConditionExpression": "test_query_id = :test_query_id",
                 "ExpressionAttributeValues": {":test_query_id": "def345"},
-            }
+            },
+            **self.schema_args,
         )
         self.assertDictEqual(data[0], self.mock_table.mock_data)
 
@@ -96,16 +100,17 @@ class DynamoDBAdapterTest(unittest.TestCase):
                 "KeyConditionExpression": "test_query_id = :test_query_id",
                 "ExpressionAttributeValues": {":test_query_id": "def345"},
             },
+            **self.schema_args,
         )
         passed = data["Items"][0] == self.mock_table.mock_data and data.get("LastEvaluatedKey")
         self.assertTrue(passed)
 
     def test_adapter_scan(self):
-        data = self.adapter.scan()
+        data = self.adapter.scan(**self.schema_args)
         self.assertDictEqual(data[0], self.mock_table.mock_data)
 
     def test_adapter_raw_scan(self):
-        data = self.adapter.scan(**{"raw_scan": True})
+        data = self.adapter.scan(**{"raw_scan": True}, **self.schema_args)
         self.assertDictEqual(data["Items"][0], self.mock_table.mock_data)
 
     def test_adapter_create(self):
@@ -118,30 +123,36 @@ class DynamoDBAdapterTest(unittest.TestCase):
             "created": "2020-10-05",
             "modified": "2020-10-05",
         }
-        data = self.adapter.create(data=new_data)
+        data = self.adapter.create(data=new_data, **self.schema_args)
         self.assertDictEqual(data, new_data)
 
     def test_adapter_batch_insert(self):
-        item_list = {"data": [{"test_id": str(x), "test_query_id": str(x)} for x in range(100)]}
+        item_list = {
+            "data": [{"test_id": str(x), "test_query_id": str(x)} for x in range(100)],
+            **self.schema_args,
+        }
         self.adapter.batch_insert(**item_list)
-        data = self.adapter.scan()
+        data = self.adapter.scan(**self.schema_args)
         self.assertEqual(len(data), 101)
 
     def test_adapter_batch_insert_fail(self):
-        item_tuple = {"data": (1, 2, 3)}
+        item_tuple = {"data": (1, 2, 3), **self.schema_args}
         self.assertRaises(BatchItemException, self.adapter.batch_insert, **item_tuple)
 
     def test_adapter_batch_delete(self):
-        item_list = {"data": [{"test_id": str(x), "test_query_id": str(x)} for x in range(100)]}
+        item_list = {
+            "data": [{"test_id": str(x), "test_query_id": str(x)} for x in range(100)],
+            **self.schema_args,
+        }
         self.adapter.batch_insert(**item_list)
-        data = self.adapter.scan()
+        data = self.adapter.scan(**self.schema_args)
         count_before_delete = len(data)
         self.adapter.batch_delete(**item_list)
-        data = self.adapter.scan()
+        data = self.adapter.scan(**self.schema_args)
         self.assertTrue(count_before_delete == 101 and len(data) == 1)
 
     def test_adapter_batch_delete_fail(self):
-        item_tuple = {"data": (1, 2, 3)}
+        item_tuple = {"data": (1, 2, 3), **self.schema_args}
         self.assertRaises(BatchItemException, self.adapter.batch_delete, **item_tuple)
 
     def test_adapter_overwrite(self):
@@ -154,7 +165,7 @@ class DynamoDBAdapterTest(unittest.TestCase):
             "created": "2020-10-05",
             "modified": "2020-10-05",
         }
-        data = self.adapter.create(operation="overwrite", data=new_data)
+        data = self.adapter.create(operation="overwrite", data=new_data, **self.schema_args)
         self.assertDictEqual(data, new_data)
 
     def test_adapter_create_ignore_key(self):
@@ -168,7 +179,7 @@ class DynamoDBAdapterTest(unittest.TestCase):
             "created": "2020-10-05",
             "modified": "2020-10-05",
         }
-        data = self.adapter.create(data=new_data)
+        data = self.adapter.create(data=new_data, **self.schema_args)
         new_data.pop("ignore_key", None)
         self.assertDictEqual(data, new_data)
 
@@ -182,7 +193,7 @@ class DynamoDBAdapterTest(unittest.TestCase):
             "created": "2020-10-05",
             "modified": "2020-10-05",
         }
-        data = self.adapter.create(data=new_data)
+        data = self.adapter.create(data=new_data, **self.schema_args)
         self.assertDictEqual(data, new_data)
         new_data["array_number"] = [1, 2, 3, 4]
         updated_data = self.adapter.update(
@@ -194,6 +205,7 @@ class DynamoDBAdapterTest(unittest.TestCase):
                     "test_query_id": "def789",
                 }
             },
+            **self.schema_args,
         )
         self.assertDictEqual(updated_data, new_data)
 
@@ -217,6 +229,7 @@ class DynamoDBAdapterTest(unittest.TestCase):
                     "test_query_id": "def345",
                 }
             },
+            **self.schema_args,
         )
 
         self.assertDictEqual(result, updated_payload)
@@ -226,7 +239,8 @@ class DynamoDBAdapterTest(unittest.TestCase):
                     "test_id": "abc123",
                     "test_query_id": "def345",
                 }
-            }
+            },
+            **self.schema_args,
         )
         self.assertEqual(stored["modified"], "2020-11-05")
 
@@ -267,6 +281,7 @@ class DynamoDBAdapterTest(unittest.TestCase):
                             "test_query_id": "def345",
                         }
                     },
+                    **self.schema_args,
                 )
         finally:
             self.adapter.table.put_item = original_put  # type: ignore[assignment]
@@ -275,12 +290,12 @@ class DynamoDBAdapterTest(unittest.TestCase):
         adapter = daplug_ddb.adapter(
             table=self.mock_table.table_name,
             endpoint="http://localhost:4000",
-            schema="test-dynamo-model",
             schema_file="tests/openapi.yml",
             identifier="test_id",
             idempotence_key="modified",
             idempotence_use_latest=True,
         )
+        schema_args = {"schema": "test-dynamo-model"}
 
         stale_payload = self.mock_table.mock_data.copy()
         stale_payload["modified"] = "2020-01-01"
@@ -289,6 +304,7 @@ class DynamoDBAdapterTest(unittest.TestCase):
             data=stale_payload,
             operation="get",
             query={"Key": {"test_id": "abc123", "test_query_id": "def345"}},
+            **schema_args,
         )
 
         self.assertEqual(result["modified"], self.mock_table.mock_data["modified"])
@@ -297,12 +313,12 @@ class DynamoDBAdapterTest(unittest.TestCase):
         adapter = daplug_ddb.adapter(
             table=self.mock_table.table_name,
             endpoint="http://localhost:4000",
-            schema="test-dynamo-model",
             schema_file="tests/openapi.yml",
             identifier="test_id",
             idempotence_key="modified",
             idempotence_use_latest=True,
         )
+        schema_args = {"schema": "test-dynamo-model"}
 
         newer_payload = self.mock_table.mock_data.copy()
         newer_payload["modified"] = "2030-01-01"
@@ -311,6 +327,7 @@ class DynamoDBAdapterTest(unittest.TestCase):
             data=newer_payload,
             operation="get",
             query={"Key": {"test_id": "abc123", "test_query_id": "def345"}},
+            **schema_args,
         )
 
         self.assertEqual(result["modified"], "2030-01-01")
@@ -319,12 +336,12 @@ class DynamoDBAdapterTest(unittest.TestCase):
         adapter = daplug_ddb.adapter(
             table=self.mock_table.table_name,
             endpoint="http://localhost:4000",
-            schema="test-dynamo-model",
             schema_file="tests/openapi.yml",
             identifier="test_id",
             idempotence_key="modified",
             idempotence_use_latest=True,
         )
+        schema_args = {"schema": "test-dynamo-model"}
 
         invalid_payload = self.mock_table.mock_data.copy()
         invalid_payload["modified"] = "not-a-date"
@@ -334,6 +351,7 @@ class DynamoDBAdapterTest(unittest.TestCase):
                 data=invalid_payload,
                 operation="get",
                 query={"Key": {"test_id": "abc123", "test_query_id": "def345"}},
+                **schema_args,
             )
 
     def test_adapter_delete(self):
@@ -346,14 +364,15 @@ class DynamoDBAdapterTest(unittest.TestCase):
             "created": "2020-10-05",
             "modified": "2020-10-05",
         }
-        self.adapter.create(data=new_data)
+        self.adapter.create(data=new_data, **self.schema_args)
         self.adapter.delete(
             query={
                 "Key": {
                     "test_id": "abc456-delete",
                     "test_query_id": "def789",
                 }
-            }
+            },
+            **self.schema_args,
         )
         deleted_data = self.adapter.get(
             query={
@@ -361,7 +380,8 @@ class DynamoDBAdapterTest(unittest.TestCase):
                     "test_id": "abc456-delete",
                     "test_query_id": "def789",
                 }
-            }
+            },
+            **self.schema_args,
         )
         self.assertDictEqual(deleted_data, {})
 
@@ -369,10 +389,10 @@ class DynamoDBAdapterTest(unittest.TestCase):
         adapter = daplug_ddb.adapter(
             table="unittestsort",  # table already exists from setUp
             endpoint="http://localhost:4000",
-            schema="test-dynamo-model",
             schema_file="tests/openapi.yml",
             identifier="test_id",
         )
+        schema_args = {"schema": "test-dynamo-model"}
 
         new_data = {
             "test_id": "no-version",
@@ -383,7 +403,7 @@ class DynamoDBAdapterTest(unittest.TestCase):
             "created": "2020-10-05",
             "modified": "2020-10-05",
         }
-        created = adapter.create(data=new_data)
+        created = adapter.create(data=new_data, **schema_args)
         self.assertDictEqual(created, new_data)
 
         new_data["array_number"] = [1, 2, 3, 4]
@@ -396,6 +416,7 @@ class DynamoDBAdapterTest(unittest.TestCase):
                     "test_query_id": "def789",
                 }
             },
+            **schema_args,
         )
         self.assertDictEqual(updated, new_data)
 

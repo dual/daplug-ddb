@@ -44,7 +44,6 @@ import daplug_ddb
 adapter = daplug_ddb.adapter(
     table="example-table",
     endpoint="https://dynamodb.us-east-2.amazonaws.com", # optional, will use AWS conventional env vars if using on lambda
-    schema="ExampleModel",
     schema_file="openapi.yml",
     identifier="record_id",
     idempotence_key="modified",
@@ -56,14 +55,16 @@ item = adapter.create(
         "object_key": {"string_key": "value"},
         "array_number": [1, 2, 3],
         "modified": "2024-01-01",
-    }
+    },
+    schema="ExampleModel",
 )
 
 print(item)
 ```
 
-The adapter automatically maps the payload to your schema and publishes an SNS
-event if credentials are provided.
+Because the adapter is configured with a `schema_file`, every call can opt into
+mapping by supplying `schema`. Skip the schema argument when you want to write
+the data exactly as provided.
 
 ## 🔧 Advanced Configuration
 
@@ -91,26 +92,33 @@ adapter.update(
 adapter = daplug_ddb.adapter(
     table="tenant-config",
     endpoint="https://dynamodb.us-east-2.amazonaws.com",
-    schema="TenantModel",
     schema_file="openapi.yml",
     identifier="tenant_id",
-    hash_key="tenant_id",
-    hash_prefix="tenant#",
-    range_key="sort_key",
-    range_prefix="config#",
 )
 
-item = adapter.create(data={
-    "tenant_id": "abc",
-    "sort_key": "default",
-    "modified": "2024-01-01",
-})
+prefix_args = {
+    "hash_key": "tenant_id",
+    "hash_prefix": "tenant#",
+    "range_key": "sort_key",
+    "range_prefix": "config#",
+}
+
+item = adapter.create(
+    data={
+        "tenant_id": "abc",
+        "sort_key": "default",
+        "modified": "2024-01-01",
+    },
+    schema="TenantModel",
+    **prefix_args,
+)
 # DynamoDB stores tenant_id as "tenant#abc", but the adapter returns "abc"
 ```
 
-When prefixes are configured, the adapter automatically applies them on the way
+When prefixes are provided, the adapter automatically applies them on the way
 into DynamoDB (including batch operations and deletes) and removes them before
-returning data or publishing SNS events.
+returning data or publishing SNS events. Pass the same `prefix_args` to reads
+(`get`, `query`, `scan`) so query keys are expanded and responses are cleaned.
 
 ### Batched Writes
 
@@ -137,7 +145,6 @@ adapter.batch_delete(
 adapter = daplug_ddb.adapter(
     table="orders",
     endpoint="https://dynamodb.us-east-2.amazonaws.com",
-    schema="OrderModel",
     schema_file="openapi.yml",
     identifier="order_id",
     idempotence_key="modified",
@@ -147,6 +154,7 @@ updated = adapter.update(
     data={"order_id": "abc123", "modified": "2024-02-01"},
     operation="get",
     query={"Key": {"order_id": "abc123"}},
+    schema="OrderModel",
 )
 ```
 
@@ -163,7 +171,6 @@ update flow.
 ```python
 adapter = daplug_ddb.adapter(
     table="orders",
-    schema="OrderModel",
     schema_file="openapi.yml",
     identifier="order_id",
     idempotence_key="modified",
@@ -178,7 +185,6 @@ updates are ignored automatically.
 ```python
 adapter = daplug_ddb.adapter(
     table="orders",
-    schema="OrderModel",
     schema_file="openapi.yml",
     identifier="order_id",
     idempotence_key="modified",
@@ -237,7 +243,6 @@ with adapter defaults and schema-derived metadata.
 ```python
 adapter = daplug_ddb.adapter(
     table="audit-table",
-    schema="AuditModel",
     schema_file="openapi.yml",
     identifier="audit_id",
     idempotence_key="version",
@@ -247,6 +252,7 @@ adapter = daplug_ddb.adapter(
 )
 adapter.create(
     data=item,
+    schema="AuditModel",
     sns_attributes={"source": "billing", "priority": "high"},
 )
 # => publishes a formatted SNS event with schema metadata

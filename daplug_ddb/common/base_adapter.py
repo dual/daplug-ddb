@@ -17,7 +17,6 @@ class BaseAdapter:
         self.sns_endpoint: Optional[str] = kwargs.get("sns_endpoint")
         self.publisher = publisher
         self.default_attributes: Dict[str, Any] = {
-            "schema": kwargs.get("schema"),
             "identifier": kwargs.get("identifier"),
             "idempotence_key": kwargs.get("idempotence_key"),
             "author_identifier": kwargs.get("author_identifier"),

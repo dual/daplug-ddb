@@ -14,12 +14,19 @@ from daplug_ddb.common.base_adapter import BaseAdapter
 
 from tests.unit.mocks import StubTable, build_test_item
 
+SCHEMA_ARGS = {"schema": "test-dynamo-model"}
+PREFIX_ARGS = {
+    "hash_key": "test_id",
+    "hash_prefix": "tenant#",
+    "range_key": "test_query_id",
+    "range_prefix": "type#",
+}
+
 
 def _create_adapter(table: StubTable, **overrides) -> DynamodbAdapter:
     params = {
         "table": "stub-table",
         "endpoint": None,
-        "schema": "test-dynamo-model",
         "schema_file": "tests/openapi.yml",
         "identifier": "test_id",
     }
@@ -33,7 +40,7 @@ def _create_adapter(table: StubTable, **overrides) -> DynamodbAdapter:
 def test_insert_applies_identifier_condition() -> None:
     table = StubTable()
     adapter = _create_adapter(table)
-    adapter.insert(data=build_test_item())
+    adapter.insert(data=build_test_item(), **SCHEMA_ARGS)
 
     assert table.put_calls, "put_item should be invoked"
     call_kwargs = table.put_calls[-1]
@@ -51,6 +58,7 @@ def test_update_without_idempotence_key_omits_condition_expression() -> None:
         data=updated,
         operation="get",
         query={"Key": {"test_id": "abc123", "test_query_id": "def345"}},
+        **SCHEMA_ARGS,
     )
 
     call_kwargs = table.put_calls[-1]
@@ -68,6 +76,7 @@ def test_update_with_idempotence_key_sets_condition_expression() -> None:
         data=updated,
         operation="get",
         query={"Key": {"test_id": "abc123", "test_query_id": "def345"}},
+        **SCHEMA_ARGS,
     )
 
     call_kwargs = table.put_calls[-1]
@@ -83,6 +92,7 @@ def test_update_with_missing_idempotence_value_skips_condition() -> None:
         data=build_test_item(),
         operation="get",
         query={"Key": {"test_id": "abc123", "test_query_id": "def345"}},
+        **SCHEMA_ARGS,
     )
 
     call_kwargs = table.put_calls[-1]
@@ -94,7 +104,7 @@ def test_batch_insert_rejects_non_list_input() -> None:
     adapter = _create_adapter(table)
 
     with pytest.raises(BatchItemException):
-        adapter.batch_insert(data=(1, 2, 3))
+        adapter.batch_insert(data=(1, 2, 3), **SCHEMA_ARGS)
 
 
 def test_update_raises_when_idempotence_value_changes_and_flag_set() -> None:
@@ -107,6 +117,7 @@ def test_update_raises_when_idempotence_value_changes_and_flag_set() -> None:
             data=build_test_item(modified="2020-02-01"),
             operation="get",
             query={"Key": {"test_id": "abc123", "test_query_id": "def345"}},
+            **SCHEMA_ARGS,
         )
 
 
@@ -119,6 +130,7 @@ def test_update_allows_mismatched_idempotence_when_flag_false() -> None:
         data=build_test_item(modified="2020-02-01"),
         operation="get",
         query={"Key": {"test_id": "abc123", "test_query_id": "def345"}},
+        **SCHEMA_ARGS,
     )
 
     call_kwargs = table.put_calls[-1]
@@ -138,6 +150,7 @@ def test_update_use_latest_ignores_stale_payload() -> None:
         data=build_test_item(modified="2020-01-01"),
         operation="get",
         query={"Key": {"test_id": "abc123", "test_query_id": "def345"}},
+        **SCHEMA_ARGS,
     )
 
     assert result["modified"] == "2020-02-01"
@@ -158,12 +171,12 @@ def test_update_use_latest_raises_on_invalid_date() -> None:
             data=build_test_item(modified="not-a-date"),
             operation="get",
             query={"Key": {"test_id": "abc123", "test_query_id": "def345"}},
+            **SCHEMA_ARGS,
         )
 
 
 def test_base_adapter_merges_sns_attributes() -> None:
     base = BaseAdapter(
-        schema="TestSchema",
         identifier="id",
         sns_attributes={"custom": "value"},
     )
@@ -179,15 +192,9 @@ def test_base_adapter_merges_sns_attributes() -> None:
 
 def test_insert_applies_configured_prefixes() -> None:
     table = StubTable()
-    adapter = _create_adapter(
-        table,
-        hash_key="test_id",
-        hash_prefix="tenant#",
-        range_key="test_query_id",
-        range_prefix="type#",
-    )
+    adapter = _create_adapter(table)
 
-    result = adapter.insert(data=build_test_item())
+    result = adapter.insert(data=build_test_item(), **SCHEMA_ARGS, **PREFIX_ARGS)
 
     stored_item = table.put_calls[-1]["Item"]
     assert stored_item["test_id"] == "tenant#abc123"
@@ -202,15 +209,12 @@ def test_get_removes_configured_prefixes() -> None:
         "test_query_id": "type#def345",
         "modified": "2020-10-05",
     }
-    adapter = _create_adapter(
-        table,
-        hash_key="test_id",
-        hash_prefix="tenant#",
-        range_key="test_query_id",
-        range_prefix="type#",
-    )
+    adapter = _create_adapter(table)
 
-    item = adapter.get(query={"Key": {"test_id": "abc123", "test_query_id": "def345"}})
+    item = adapter.get(
+        query={"Key": {"test_id": "abc123", "test_query_id": "def345"}},
+        **PREFIX_ARGS,
+    )
 
     stored_key = table.get_calls[-1]["Key"]
     assert stored_key["test_id"] == "tenant#abc123"
@@ -222,19 +226,15 @@ def test_get_removes_configured_prefixes() -> None:
 def test_update_applies_prefixes() -> None:
     table = StubTable()
     table.get_item_response = build_test_item()
-    adapter = _create_adapter(
-        table,
-        hash_key="test_id",
-        hash_prefix="tenant#",
-        range_key="test_query_id",
-        range_prefix="type#",
-    )
+    adapter = _create_adapter(table)
 
     updated = build_test_item(modified="2020-10-06")
     adapter.update(
         data=updated,
         operation="get",
         query={"Key": {"test_id": "abc123", "test_query_id": "def345"}},
+        **SCHEMA_ARGS,
+        **PREFIX_ARGS,
     )
 
     stored_item = table.put_calls[-1]["Item"]
