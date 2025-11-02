@@ -1,4 +1,4 @@
-# 🔌 daplug-ddb
+# 🔌 daplug-ddb (da•plug)
 
 > **Schema-Driven DynamoDB Normalization & Event Publishing for Python**
 
