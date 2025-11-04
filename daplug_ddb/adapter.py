@@ -27,6 +27,14 @@ class DynamodbAdapter(BaseAdapter):
         self.idempotence_key: Optional[str] = kwargs.get("idempotence_key")
         self.raise_idempotence_error: bool = kwargs.get("raise_idempotence_error", False)
         self.idempotence_use_latest: bool = kwargs.get("idempotence_use_latest", False)
+        self._prefix_keys = ("hash_key", "hash_prefix", "range_key", "range_prefix")
+        self._default_prefix_config = self.__extract_prefix_config(kwargs)
+
+    @property
+    def prefixing_enabled(self) -> bool:
+        """Returns True when adapter-level prefix config has been supplied."""
+
+        return bool(self._default_prefix_config)
 
     def create(self, **kwargs: Any) -> DynamoItem:
         if kwargs.get("operation") == "overwrite":
@@ -42,67 +50,76 @@ class DynamodbAdapter(BaseAdapter):
 
     def scan(self, **kwargs: Any) -> Union[DynamoItems, Dict[str, Any]]:
         prefixer = self.__build_prefixer(kwargs)
-        response = self.table.scan(**kwargs.get("query", {}))
-        cleaned = prefixer.remove_prefix(response)
-        if kwargs.get("raw_scan") and isinstance(cleaned, dict):
-            return cleaned
-        if isinstance(cleaned, dict):
-            return cleaned.get("Items", [])
-        return response if kwargs.get("raw_scan") else response.get("Items", [])
+        request_args = self.__prepare_request_arguments(prefixer, kwargs)
+        response = self.table.scan(**request_args)
+        if not prefixer.enabled:
+            return response if kwargs.get("raw_scan") else response.get("Items", [])
+        cleaned_response = prefixer.apply_response(response, add=False)
+        if kwargs.get("raw_scan"):
+            return cleaned_response if cleaned_response is not None else response
+        cleaned = cleaned_response or {}
+        return cleaned.get("Items", [])
 
     def get(self, **kwargs: Any) -> DynamoItem:
         prefixer = self.__build_prefixer(kwargs)
-        query = self.__prefixed_query(kwargs.get("query"), prefixer)
-        result: Dict[str, Any] = self.table.get_item(**query)
-        cleaned = prefixer.remove_prefix(result.get("Item", {}))
-        return cleaned if isinstance(cleaned, dict) else result.get("Item", {})
+        request_args = self.__prepare_request_arguments(prefixer, kwargs)
+        result: Dict[str, Any] = self.table.get_item(**request_args)
+        item = result.get("Item", {})
+        if not prefixer.enabled:
+            return item if isinstance(item, dict) else {}
+        cleaned = prefixer.apply_item(item, add=False)
+        return cleaned if isinstance(cleaned, dict) else item
 
     def query(self, **kwargs: Any) -> Union[DynamoItems, Dict[str, Any]]:
         prefixer = self.__build_prefixer(kwargs)
-        prefixed_query = self.__prefixed_query(kwargs.get("query"), prefixer)
-        response = self.table.query(**prefixed_query)
-        cleaned = prefixer.remove_prefix(response)
-        if kwargs.get("raw_query") and isinstance(cleaned, dict):
-            return cleaned
-        if isinstance(cleaned, dict):
-            return cleaned.get("Items", [])
-        return response if kwargs.get("raw_query") else response.get("Items", [])
+        request_args = self.__prepare_request_arguments(prefixer, kwargs)
+        response = self.table.query(**request_args)
+        if not prefixer.enabled:
+            return response if kwargs.get("raw_query") else response.get("Items", [])
+        cleaned_response = prefixer.apply_response(response, add=False)
+        if kwargs.get("raw_query"):
+            return cleaned_response if cleaned_response is not None else response
+        cleaned = cleaned_response or {}
+        return cleaned.get("Items", [])
 
     def overwrite(self, **kwargs: Any) -> DynamoItem:
         payload = self.__map_with_schema(kwargs["data"], kwargs)
         prefixer = self.__build_prefixer(kwargs)
-        stored_item = prefixer.add_prefix(payload)
-        if isinstance(stored_item, dict):
-            self.table.put_item(Item=stored_item)
-            cleaned = prefixer.remove_prefix(stored_item)
-            if isinstance(cleaned, dict):
-                super().publish("create", cleaned, **kwargs)
-                return cleaned
-            super().publish("create", payload, **kwargs)
-            return payload
-        self.table.put_item(Item=payload)
-        super().publish("create", payload, **kwargs)
-        return payload
+        item_to_store = (
+            prefixer.apply_item(payload, add=True)
+            if prefixer.enabled
+            else payload
+        )
+        self.table.put_item(Item=item_to_store)
+        response_item = (
+            prefixer.apply_item(item_to_store, add=False)
+            if prefixer.enabled
+            else payload
+        )
+        result_item = response_item if isinstance(response_item, dict) else payload
+        super().publish("create", result_item, **kwargs)
+        return result_item
 
     def insert(self, **kwargs: Any) -> DynamoItem:
         payload = self.__map_with_schema(kwargs["data"], kwargs)
         prefixer = self.__build_prefixer(kwargs)
-        stored_item = prefixer.add_prefix(payload)
-        if isinstance(stored_item, dict):
-            self.table.put_item(
-                Item=stored_item, ConditionExpression=Attr(self.identifier).not_exists()
-            )
-            cleaned = prefixer.remove_prefix(stored_item)
-            if isinstance(cleaned, dict):
-                super().publish("create", cleaned, **kwargs)
-                return cleaned
-            super().publish("create", payload, **kwargs)
-            return payload
-        self.table.put_item(
-            Item=payload, ConditionExpression=Attr(self.identifier).not_exists()
+        item_to_store = (
+            prefixer.apply_item(payload, add=True)
+            if prefixer.enabled
+            else payload
         )
-        super().publish("create", payload, **kwargs)
-        return payload
+        self.table.put_item(
+            Item=item_to_store,
+            ConditionExpression=Attr(self.identifier).not_exists(),
+        )
+        response_item = (
+            prefixer.apply_item(item_to_store, add=False)
+            if prefixer.enabled
+            else payload
+        )
+        result_item = response_item if isinstance(response_item, dict) else payload
+        super().publish("create", result_item, **kwargs)
+        return result_item
 
     def batch_insert(self, **kwargs: Any) -> None:
         data = kwargs["data"]
@@ -117,18 +134,24 @@ class DynamodbAdapter(BaseAdapter):
         )
         with self.table.batch_writer() as writer:
             for batch in batched_data:
-                prefixed_batch = prefixer.add_prefix(batch)
-                items_to_store = prefixed_batch if isinstance(prefixed_batch, list) else batch
+                if prefixer.enabled:
+                    prefixed_batch = prefixer.apply_items(batch, add=True)
+                    items_to_store = prefixed_batch if prefixed_batch is not None else batch
+                else:
+                    items_to_store = batch
                 for item in items_to_store:
                     writer.put_item(Item=item)
 
     def delete(self, **kwargs: Any) -> DynamoItem:
         prefixer = self.__build_prefixer(kwargs)
-        query = self.__prefixed_query(kwargs.get("query"), prefixer)
-        query["ReturnValues"] = "ALL_OLD"
-        result = self.table.delete_item(**query).get("Attributes", {})
-        cleaned = prefixer.remove_prefix(result)
-        cleaned_item = cleaned if isinstance(cleaned, dict) else result
+        request_args = self.__prepare_request_arguments(prefixer, kwargs)
+        request_args["ReturnValues"] = "ALL_OLD"
+        result = self.table.delete_item(**request_args).get("Attributes", {})
+        if prefixer.enabled:
+            cleaned = prefixer.apply_item(result, add=False)
+            cleaned_item = cleaned if isinstance(cleaned, dict) else result
+        else:
+            cleaned_item = result
         super().publish("delete", cleaned_item, **kwargs)
         return cleaned_item if isinstance(cleaned_item, dict) else {}
 
@@ -143,8 +166,11 @@ class DynamodbAdapter(BaseAdapter):
         prefixer = self.__build_prefixer(kwargs)
         with self.table.batch_writer() as writer:
             for batch in batched_data:
-                prefixed_batch = prefixer.add_prefix(batch)
-                items_to_delete = prefixed_batch if isinstance(prefixed_batch, list) else batch
+                if prefixer.enabled:
+                    prefixed_batch = prefixer.apply_items(batch, add=True)
+                    items_to_delete = prefixed_batch if prefixed_batch is not None else batch
+                else:
+                    items_to_delete = batch
                 for item in items_to_delete:
                     writer.delete_item(Key=item)
 
@@ -153,21 +179,27 @@ class DynamodbAdapter(BaseAdapter):
         original_data = self.__get_original_data(**kwargs)
         merged_data = merge(original_data, kwargs["data"], **kwargs)
         payload = self.__map_with_schema(merged_data, kwargs)
-        stored_item = prefixer.add_prefix(payload)
-        if isinstance(stored_item, dict):
-            data_to_store = stored_item
-            response_template = prefixer.remove_prefix(stored_item)
-            if not isinstance(response_template, dict):
-                response_template = payload
+        if prefixer.enabled:
+            prefixed_item = prefixer.apply_item(payload, add=True)
+            data_to_store = prefixed_item if isinstance(prefixed_item, dict) else payload
+            response_template_raw = prefixer.apply_item(data_to_store, add=False)
+            response_template = (
+                response_template_raw if isinstance(response_template_raw, dict) else payload
+            )
         else:
             data_to_store = payload
             response_template = payload
+        key_name = self.idempotence_key
         original_value = (
-            original_data.get(self.idempotence_key)  # type: ignore[arg-type]
-            if isinstance(original_data, dict)
+            original_data.get(key_name)
+            if isinstance(original_data, dict) and key_name
             else None
         )
-        new_value = response_template.get(self.idempotence_key) if isinstance(response_template, dict) else None
+        new_value = (
+            response_template.get(key_name)
+            if isinstance(response_template, dict) and key_name
+            else None
+        )
         if self.__should_use_latest(original_value, new_value):
             return self.__clean_for_response(prefixer, original_data)
         put_kwargs = self.__build_put_kwargs(original_value, data_to_store)
@@ -199,7 +231,9 @@ class DynamodbAdapter(BaseAdapter):
         return put_kwargs
 
     def __clean_for_response(self, prefixer: DynamodbPrefixer, item: Dict[str, Any]) -> Dict[str, Any]:
-        cleaned = prefixer.remove_prefix(item)
+        if not prefixer.enabled:
+            return item
+        cleaned = prefixer.apply_item(item, add=False)
         return cleaned if isinstance(cleaned, dict) else item
 
     def __get_original_data(self, **kwargs: Any) -> DynamoItem:
@@ -219,22 +253,6 @@ class DynamodbAdapter(BaseAdapter):
         if not original_data:
             raise ValueError("update: no data found to update")
         return original_data
-
-    def __prefixed_query(self, query: Optional[Dict[str, Any]], prefixer: DynamodbPrefixer) -> Dict[str, Any]:
-        if not query:
-            return {}
-        prefixed = dict(query)
-        key = prefixed.get("Key")
-        if isinstance(key, dict):
-            prefixed_key = prefixer.add_prefix(key)
-            if isinstance(prefixed_key, dict):
-                prefixed["Key"] = prefixed_key
-        exclusive = prefixed.get("ExclusiveStartKey")
-        if isinstance(exclusive, dict):
-            prefixed_key = prefixer.add_prefix(exclusive)
-            if isinstance(prefixed_key, dict):
-                prefixed["ExclusiveStartKey"] = prefixed_key
-        return prefixed
 
     def __should_use_latest(self, original_value: Any, new_value: Any) -> bool:
         if not self.idempotence_use_latest or not self.idempotence_key:
@@ -256,9 +274,30 @@ class DynamodbAdapter(BaseAdapter):
         return deepcopy(data)
 
     def __build_prefixer(self, call_kwargs: Dict[str, Any]) -> DynamodbPrefixer:
-        config: Dict[str, Any] = {}
-        for key in ("hash_key", "hash_prefix", "range_key", "range_prefix"):
+        config = dict(self._default_prefix_config)
+        for key in self._prefix_keys:
             value = call_kwargs.get(key)
             if value is not None:
                 config[key] = value
         return DynamodbPrefixer(**config)
+
+    def __extract_prefix_config(self, source: Dict[str, Any]) -> Dict[str, Any]:
+        config: Dict[str, Any] = {}
+        for key in ("hash_key", "hash_prefix", "range_key", "range_prefix"):
+            value = source.get(key)
+            if value is not None:
+                config[key] = value
+        return config
+
+    def __prepare_request_arguments(
+        self,
+        prefixer: DynamodbPrefixer,
+        call_kwargs: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        raw_query = call_kwargs.get("query") or {}
+        if not isinstance(raw_query, dict):
+            return {}
+        if prefixer.enabled:
+            transformed = prefixer.apply_request(raw_query, add=True)
+            return transformed if isinstance(transformed, dict) else {}
+        return deepcopy(raw_query)

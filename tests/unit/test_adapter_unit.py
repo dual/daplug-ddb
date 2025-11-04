@@ -240,3 +240,54 @@ def test_update_applies_prefixes() -> None:
     stored_item = table.put_calls[-1]["Item"]
     assert stored_item["test_id"] == "tenant#abc123"
     assert stored_item["test_query_id"] == "type#def345"
+
+
+def test_query_prefixes_expression_attribute_values() -> None:
+    table = StubTable()
+    table.query_response = [
+        {
+            "test_id": "tenant#abc123",
+            "test_query_id": "type#def345",
+        }
+    ]
+    adapter = _create_adapter(table)
+
+    result = adapter.query(
+        query={
+            "IndexName": "test_query_id",
+            "KeyConditionExpression": "test_id = :test_id",
+            "ExpressionAttributeValues": {":test_id": "abc123"},
+        },
+        **SCHEMA_ARGS,
+        **PREFIX_ARGS,
+    )
+
+    call = table.query_calls[-1]
+    assert call["ExpressionAttributeValues"][":test_id"] == "tenant#abc123"
+    assert isinstance(result, list)
+    assert result[0]["test_id"] == "abc123"
+
+
+def test_query_expression_aliases_receive_prefix() -> None:
+    table = StubTable()
+    table.query_response = [
+        {
+            "test_id": "tenant#abc123",
+            "test_query_id": "type#def345",
+        }
+    ]
+    adapter = _create_adapter(table)
+
+    adapter.query(
+        query={
+            "IndexName": "test_query_id",
+            "KeyConditionExpression": "#pk = :pk",
+            "ExpressionAttributeNames": {"#pk": "test_id"},
+            "ExpressionAttributeValues": {":pk": "abc123"},
+        },
+        **SCHEMA_ARGS,
+        **PREFIX_ARGS,
+    )
+
+    call = table.query_calls[-1]
+    assert call["ExpressionAttributeValues"][":pk"] == "tenant#abc123"

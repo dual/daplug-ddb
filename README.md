@@ -119,6 +119,9 @@ When prefixes are provided, the adapter automatically applies them on the way
 into DynamoDB (including batch operations and deletes) and removes them before
 returning data or publishing SNS events. Pass the same `prefix_args` to reads
 (`get`, `query`, `scan`) so query keys are expanded and responses are cleaned.
+Codex workflow references:
+
+- [Codex agent guide](.agents/CODEX.md)
 
 ### Batched Writes
 
