@@ -27,7 +27,7 @@ class DynamoDBAdapterTest(unittest.TestCase):
             table=table_name,
             endpoint="http://localhost:4000",
             schema_file="tests/openapi.yml",
-            identifier="test_id",
+            hash_key="test_id",
             idempotence_key="modified",
         )
 
@@ -291,7 +291,7 @@ class DynamoDBAdapterTest(unittest.TestCase):
             table=self.mock_table.table_name,
             endpoint="http://localhost:4000",
             schema_file="tests/openapi.yml",
-            identifier="test_id",
+            hash_key="test_id",
             idempotence_key="modified",
             idempotence_use_latest=True,
         )
@@ -314,7 +314,7 @@ class DynamoDBAdapterTest(unittest.TestCase):
             table=self.mock_table.table_name,
             endpoint="http://localhost:4000",
             schema_file="tests/openapi.yml",
-            identifier="test_id",
+            hash_key="test_id",
             idempotence_key="modified",
             idempotence_use_latest=True,
         )
@@ -337,7 +337,7 @@ class DynamoDBAdapterTest(unittest.TestCase):
             table=self.mock_table.table_name,
             endpoint="http://localhost:4000",
             schema_file="tests/openapi.yml",
-            identifier="test_id",
+            hash_key="test_id",
             idempotence_key="modified",
             idempotence_use_latest=True,
         )
@@ -390,7 +390,7 @@ class DynamoDBAdapterTest(unittest.TestCase):
             table="unittestsort",  # table already exists from setUp
             endpoint="http://localhost:4000",
             schema_file="tests/openapi.yml",
-            identifier="test_id",
+            hash_key="test_id",
         )
         schema_args = {"schema": "test-dynamo-model"}
 

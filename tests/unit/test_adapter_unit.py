@@ -28,7 +28,7 @@ def _create_adapter(table: StubTable, **overrides) -> DynamodbAdapter:
         "table": "stub-table",
         "endpoint": None,
         "schema_file": "tests/openapi.yml",
-        "identifier": "test_id",
+        "hash_key": "test_id",
     }
     params.update(overrides)
     adapter_module = importlib.import_module("daplug_ddb.adapter")
@@ -37,7 +37,7 @@ def _create_adapter(table: StubTable, **overrides) -> DynamodbAdapter:
         return daplug_ddb.adapter(**params)
 
 
-def test_insert_applies_identifier_condition() -> None:
+def test_insert_applies_hash_key_condition() -> None:
     table = StubTable()
     adapter = _create_adapter(table)
     adapter.insert(data=build_test_item(), **SCHEMA_ARGS)
@@ -177,7 +177,7 @@ def test_update_use_latest_raises_on_invalid_date() -> None:
 
 def test_base_adapter_merges_sns_attributes() -> None:
     base = BaseAdapter(
-        identifier="id",
+        hash_key="id",
         sns_attributes={"custom": "value"},
     )
 
@@ -188,6 +188,44 @@ def test_base_adapter_merges_sns_attributes() -> None:
     assert formatted["operation"]["StringValue"] == "update"
     assert formatted["custom"]["StringValue"] == "override"
     assert formatted["call"]["StringValue"] == "value"
+
+
+def test_publish_includes_schema_attribute() -> None:
+    table = StubTable()
+    adapter = _create_adapter(table)
+
+    with patch.object(adapter.publisher, "publish") as publish:
+        adapter.insert(data=build_test_item(), **SCHEMA_ARGS)
+
+    assert publish.call_count == 1
+    attributes = publish.call_args.kwargs["attributes"]
+    assert attributes["schema"]["StringValue"] == SCHEMA_ARGS["schema"]
+
+
+def test_insert_requires_hash_key() -> None:
+    table = StubTable()
+    adapter = _create_adapter(table, hash_key=None)
+
+    with pytest.raises(ValueError):
+        adapter.insert(data=build_test_item(), **SCHEMA_ARGS)
+
+
+def test_create_defaults_to_insert() -> None:
+    table = StubTable()
+    adapter = _create_adapter(table)
+
+    adapter.create(data=build_test_item(), **SCHEMA_ARGS)
+
+    call_kwargs = table.put_calls[-1]
+    assert "ConditionExpression" in call_kwargs
+
+
+def test_create_without_hash_key_overwrites() -> None:
+    table = StubTable()
+    adapter = _create_adapter(table, hash_key=None)
+
+    with pytest.raises(ValueError):
+        adapter.create(data=build_test_item(), **SCHEMA_ARGS)
 
 
 def test_insert_applies_configured_prefixes() -> None:

@@ -45,7 +45,7 @@ adapter = daplug_ddb.adapter(
     table="example-table",
     endpoint="https://dynamodb.us-east-2.amazonaws.com", # optional, will use AWS conventional env vars if using on lambda
     schema_file="openapi.yml",
-    identifier="record_id",
+    hash_key="record_id",
     idempotence_key="modified",
 )
 
@@ -93,7 +93,7 @@ adapter = daplug_ddb.adapter(
     table="tenant-config",
     endpoint="https://dynamodb.us-east-2.amazonaws.com",
     schema_file="openapi.yml",
-    identifier="tenant_id",
+    hash_key="tenant_id",
 )
 
 prefix_args = {
@@ -149,7 +149,7 @@ adapter = daplug_ddb.adapter(
     table="orders",
     endpoint="https://dynamodb.us-east-2.amazonaws.com",
     schema_file="openapi.yml",
-    identifier="order_id",
+    hash_key="order_id",
     idempotence_key="modified",
 )
 
@@ -175,7 +175,7 @@ update flow.
 adapter = daplug_ddb.adapter(
     table="orders",
     schema_file="openapi.yml",
-    identifier="order_id",
+    hash_key="order_id",
     idempotence_key="modified",
     raise_idempotence_error=True,
 )
@@ -189,7 +189,7 @@ updates are ignored automatically.
 adapter = daplug_ddb.adapter(
     table="orders",
     schema_file="openapi.yml",
-    identifier="order_id",
+    hash_key="order_id",
     idempotence_key="modified",
     idempotence_use_latest=True,
 )
@@ -247,7 +247,7 @@ with adapter defaults and schema-derived metadata.
 adapter = daplug_ddb.adapter(
     table="audit-table",
     schema_file="openapi.yml",
-    identifier="audit_id",
+    hash_key="audit_id",
     idempotence_key="version",
     sns_arn="arn:aws:sns:us-east-2:123456789012:audit-events",
     sns_endpoint="https://sns.us-east-2.amazonaws.com",
@@ -271,7 +271,7 @@ operation-specific overrides) when you invoke a method.
 adapter = daplug_ddb.adapter(
     table="orders",
     schema_file="openapi.yml",
-    identifier="order_id",
+    hash_key="order_id",
     idempotence_key="modified",
 )
 ```
@@ -279,7 +279,7 @@ adapter = daplug_ddb.adapter(
 ### `create` (wrapper around `insert`/`overwrite`)
 
 ```python
-# default: behaves like insert with idempotence protection
+# default: behaves like insert (requires hash_key)
 adapter.create(data=payload, schema="OrderModel")
 
 # explicit overwrite (upsert semantics)

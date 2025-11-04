@@ -23,7 +23,7 @@ class DynamodbAdapter(BaseAdapter):
         super().__init__(**kwargs)
         self.table = self.__get_dynamo_table(kwargs["table"], kwargs.get("endpoint"))
         self.schema_file: Optional[str] = kwargs.get("schema_file")
-        self.identifier: str = kwargs.get("identifier", "")
+        self.hash_key: Optional[str] = kwargs.get("hash_key")
         self.idempotence_key: Optional[str] = kwargs.get("idempotence_key")
         self.raise_idempotence_error: bool = kwargs.get("raise_idempotence_error", False)
         self.idempotence_use_latest: bool = kwargs.get("idempotence_use_latest", False)
@@ -108,9 +108,11 @@ class DynamodbAdapter(BaseAdapter):
             if prefixer.enabled
             else payload
         )
+        if not self.hash_key:
+            raise ValueError("insert requires hash_key to be configured")
         self.table.put_item(
             Item=item_to_store,
-            ConditionExpression=Attr(self.identifier).not_exists(),
+            ConditionExpression=Attr(self.hash_key).not_exists(),
         )
         response_item = (
             prefixer.apply_item(item_to_store, add=False)

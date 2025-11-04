@@ -17,13 +17,17 @@ class BaseAdapter:
         self.sns_endpoint: Optional[str] = kwargs.get("sns_endpoint")
         self.publisher = publisher
         self.default_attributes: Dict[str, Any] = {
-            "identifier": kwargs.get("identifier"),
+            "hash_key": kwargs.get("hash_key"),
             "idempotence_key": kwargs.get("idempotence_key"),
             "author_identifier": kwargs.get("author_identifier"),
         }
 
     def publish(self, db_operation: str, db_data: Dict[str, Any], **kwargs: Any) -> None:
-        attributes = self.create_format_attibutes(db_operation, kwargs.get("sns_attributes", {}))
+        call_attributes: Dict[str, Any] = dict(kwargs.get("sns_attributes", {}))
+        schema_name = kwargs.get("schema")
+        if schema_name and "schema" not in call_attributes:
+            call_attributes["schema"] = schema_name
+        attributes = self.create_format_attibutes(db_operation, call_attributes)
         self.publisher.publish(
             endpoint=self.sns_endpoint,
             arn=self.sns_arn,
