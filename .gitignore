@@ -209,3 +209,6 @@ __marimo__/
 
 # Internal agent plans (keep parent tracked)
 .agents/plans/
+
+# Mac
+.DS_Store
