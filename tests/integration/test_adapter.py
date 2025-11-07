@@ -126,6 +126,58 @@ class DynamoDBAdapterTest(unittest.TestCase):
         data = self.adapter.create(data=new_data, **self.schema_args)
         self.assertDictEqual(data, new_data)
 
+    def test_adapter_insert_same_hash_different_range(self):
+        shared_hash = "duplicate-user"
+        admin_item = {
+            "test_id": shared_hash,
+            "test_query_id": "admin",
+            "object_key": {"string_key": "admin"},
+            "array_number": [1, 2, 3],
+            "array_objects": [{"array_string_key": "a", "array_number_key": 1}],
+            "created": "2020-10-05",
+            "modified": "2020-10-05",
+        }
+        basic_item = {
+            "test_id": shared_hash,
+            "test_query_id": "basic",
+            "object_key": {"string_key": "basic"},
+            "array_number": [3, 2, 1],
+            "array_objects": [{"array_string_key": "b", "array_number_key": 2}],
+            "created": "2020-10-06",
+            "modified": "2020-10-06",
+        }
+
+        created_admin = self.adapter.create(data=admin_item, **self.schema_args)
+        created_basic = self.adapter.create(data=basic_item, **self.schema_args)
+
+        fetched_admin = self.adapter.get(
+            query={"Key": {"test_id": shared_hash, "test_query_id": "admin"}},
+            **self.schema_args,
+        )
+        fetched_basic = self.adapter.get(
+            query={"Key": {"test_id": shared_hash, "test_query_id": "basic"}},
+            **self.schema_args,
+        )
+
+        self.assertDictEqual(created_admin, fetched_admin)
+        self.assertDictEqual(created_basic, fetched_basic)
+
+    def test_adapter_insert_duplicate_composite_key_fails(self):
+        shared_hash = "duplicate-user"
+        composite_item = {
+            "test_id": shared_hash,
+            "test_query_id": "admin",
+            "object_key": {"string_key": "admin"},
+            "array_number": [9, 9, 9],
+            "array_objects": [{"array_string_key": "a", "array_number_key": 9}],
+            "created": "2020-10-05",
+            "modified": "2020-10-05",
+        }
+
+        self.adapter.create(data=composite_item, **self.schema_args)
+        with self.assertRaises(ClientError):
+            self.adapter.create(data=composite_item, **self.schema_args)
+
     def test_adapter_batch_insert(self):
         item_list = {
             "data": [{"test_id": str(x), "test_query_id": str(x)} for x in range(100)],
