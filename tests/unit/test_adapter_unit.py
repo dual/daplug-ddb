@@ -177,29 +177,55 @@ def test_update_use_latest_raises_on_invalid_date() -> None:
 
 def test_base_adapter_merges_sns_attributes() -> None:
     base = BaseAdapter(
-        hash_key="id",
-        sns_attributes={"custom": "value"},
+        sns_attributes={"custom": "value", "override": "adapter"},
     )
 
-    formatted = base.create_format_attibutes(
-        "update", {"call": "value", "custom": "override"}
+    formatted = base.create_format_attributes(
+        "update", {"call": "value", "override": "call"}
     )
 
     assert formatted["operation"]["StringValue"] == "update"
-    assert formatted["custom"]["StringValue"] == "override"
+    assert formatted["custom"]["StringValue"] == "value"
     assert formatted["call"]["StringValue"] == "value"
+    assert formatted["override"]["StringValue"] == "call"
 
 
-def test_publish_includes_schema_attribute() -> None:
+def test_publish_uses_provided_sns_attributes() -> None:
     table = StubTable()
-    adapter = _create_adapter(table)
+    adapter = _create_adapter(table, sns_arn="arn:aws:sns:::example")
 
     with patch.object(adapter.publisher, "publish") as publish:
-        adapter.insert(data=build_test_item(), **SCHEMA_ARGS)
+        adapter.insert(
+            data=build_test_item(),
+            sns_attributes={"schema": SCHEMA_ARGS["schema"]},
+            **SCHEMA_ARGS,
+        )
 
     assert publish.call_count == 1
     attributes = publish.call_args.kwargs["attributes"]
     assert attributes["schema"]["StringValue"] == SCHEMA_ARGS["schema"]
+    assert attributes["operation"]["StringValue"] == "create"
+
+
+def test_publish_merges_adapter_and_call_attributes() -> None:
+    table = StubTable()
+    adapter = _create_adapter(
+        table,
+        sns_arn="arn:aws:sns:::example",
+        sns_attributes={"source": "adapter", "override": "adapter"},
+    )
+
+    with patch.object(adapter.publisher, "publish") as publish:
+        adapter.insert(
+            data=build_test_item(),
+            sns_attributes={"override": "call"},
+            **SCHEMA_ARGS,
+        )
+
+    attributes = publish.call_args.kwargs["attributes"]
+    assert attributes["source"]["StringValue"] == "adapter"
+    assert attributes["override"]["StringValue"] == "call"
+    assert attributes["operation"]["StringValue"] == "create"
 
 
 def test_insert_requires_hash_key() -> None:

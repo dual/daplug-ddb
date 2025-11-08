@@ -261,6 +261,32 @@ adapter.create(
 # => publishes a formatted SNS event with schema metadata
 ```
 
+Adapter-level 'sns_attributes' supplied when constructing the adapter act as
+defaults for every publish. Use per-call 'sns_attributes' to extend or override
+those defaults without touching the adapter configuration. Each publish always
+adds an 'operation' attribute reflecting the CRUD action so subscribers can
+route by verb.
+
+```python
+adapter = daplug_ddb.adapter(
+    table="audit-table",
+    schema_file="openapi.yml",
+    hash_key="audit_id",
+    sns_arn="arn:aws:sns:...",
+    sns_attributes={"source": "daplug", "env": "prod"},
+)
+
+# emits {source: "daplug", env: "prod", operation: "create"}
+adapter.create(data=item, schema="AuditModel")
+
+# overrides only the env attribute for this publish
+adapter.update(
+    data=item,
+    schema="AuditModel",
+    sns_attributes={"env": "staging"},
+)
+```
+
 ## 📚 Method Reference
 
 Each adapter instance holds shared configuration such as `schema_file`, SNS

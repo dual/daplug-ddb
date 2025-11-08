@@ -1,11 +1,15 @@
 # Codex Agent Reference
 
-This repository is configured for Codex CLI agents. Keep these norms in mind while you work:
+Codex CLI is already configured for this repo. Follow these guardrails while operating:
 
-- **Plans live in `.agents/plans/`** – create a Markdown plan file there when the task calls for planning, and refresh it as the work evolves.
-- **Prefer `apply_patch` for edits** – use it for manual changes to existing files. Reserve other techniques for generated outputs or large transforms.
-- **Lean on existing tooling** – run `pipenv run test`, `pipenv run integrations`, `pipenv run mypy`, and `pipenv run lint` to validate changes when relevant.
-- **Maintain ASCII unless necessary** – only introduce non-ASCII characters if the file already uses them or the user explicitly requests it.
-- **Preserve user changes** – never revert unrelated local modifications. If something unexpected appears, pause and ask how to proceed.
+- **Planning** – when a task benefits from planning, drop a Markdown plan in `.agents/plans/` and update it as you progress. Skip formal plans for trivial edits.
+- **Editing** – prefer `apply_patch` for manual changes. Use scripts or generators only when patching becomes impractical (e.g., large rewrites, formatters).
+- **Validation** – default test commands live in Pipenv:
+  - `pipenv run test` (unit tests)
+  - `pipenv run integrations` (local DynamoDB integration suite)
+  - `pipenv run lint`, `pipenv run mypy`, `pipenv run coverage` when quality gates are required
+- **Encoding** – keep files ASCII unless the target already contains non-ASCII or the request mandates otherwise.
+- **Local diffs** – do not revert user changes you didn’t author. If unexpected edits block your work, stop and ask for guidance.
+- **SNS context** – adapter-level `sns_attributes` act as defaults; per-call attributes override/extend them and every publish auto-adds `operation`. Ensure tests touching `BaseAdapter` cover that merge behavior.
 
-Following these conventions keeps Codex agents aligned across contributions. Consult the README for project-specific details.
+Consult `AGENTS.md` for task-specific rituals and the README for library usage expectations.

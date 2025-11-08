@@ -1,5 +1,3 @@
-"""Helpers that map arbitrary data to JSON schema-defined structures."""
-
 from typing import Any, Dict, List
 
 from daplug_ddb.types import DynamoItem
@@ -17,9 +15,7 @@ def map_to_schema(data: DynamoItem, schema_file: str, schema_key: str) -> Dynamo
     return model_data
 
 
-def _populate_model_data(
-    properties: Dict[str, Any], data: Any, model_data: DynamoItem
-) -> DynamoItem:
+def _populate_model_data(properties: Dict[str, Any], data: Any, model_data: DynamoItem) -> DynamoItem:
     if data and isinstance(data, dict):
         _populate_model_dict(properties, data, model_data)
     return model_data
@@ -38,9 +34,7 @@ def _populate_model_dict(properties: Dict[str, Any], data: Dict[str, Any], model
             model_data[property_key] = data.get(property_key)
 
 
-def _populate_model_list(
-    model_data: DynamoItem, property_key: str, property_value: Dict[str, Any], data: Dict[str, Any]
-) -> None:
+def _populate_model_list(model_data: DynamoItem, property_key: str, property_value: Dict[str, Any], data: Dict[str, Any]) -> None:
     model_data[property_key] = []
     items: List[Any] = data.get(property_key, [])
     for index in range(len(items)):  # pylint: disable=consider-using-enumerate
