@@ -1,5 +1,3 @@
-"""DynamoDB adapter exposing normalized CRUD operations."""
-
 from copy import deepcopy
 from datetime import datetime
 from functools import lru_cache
@@ -11,8 +9,9 @@ from boto3.dynamodb.conditions import Attr
 from daplug_ddb.prefixer import DynamodbPrefixer
 from daplug_ddb.types import DynamoItem, DynamoItems
 
-from .common import map_to_schema, merge
-from .common.base_adapter import BaseAdapter
+from daplug_core.schema_mapper import map_to_schema
+from daplug_core.dict_merger import merge
+from daplug_core.base_adapter import BaseAdapter
 from .exception import BatchItemException
 
 

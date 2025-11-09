@@ -1,5 +1,3 @@
-"""Public interface for the daplug_ddb package."""
-
 from typing import Any
 
 from .adapter import BatchItemException, DynamodbAdapter

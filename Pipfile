@@ -11,6 +11,7 @@ boto3 = "*"
 jsonref = "*"
 pyyaml = "*"
 simplejson = "*"
+daplug-core = "*"
 
 [dev-packages]
 mypy = "*"

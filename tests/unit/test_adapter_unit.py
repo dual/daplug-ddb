@@ -10,7 +10,7 @@ import pytest
 import daplug_ddb
 from daplug_ddb.adapter import DynamodbAdapter
 from daplug_ddb.exception import BatchItemException
-from daplug_ddb.common.base_adapter import BaseAdapter
+from daplug_core.base_adapter import BaseAdapter
 
 from tests.unit.mocks import StubTable, build_test_item
 
