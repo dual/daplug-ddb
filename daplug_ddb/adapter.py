@@ -6,12 +6,12 @@ from typing import Any, Dict, Iterable, Optional, Union
 import boto3
 from boto3.dynamodb.conditions import Attr
 
-from daplug_ddb.prefixer import DynamodbPrefixer
-from daplug_ddb.types import DynamoItem, DynamoItems
-
 from daplug_core.schema_mapper import map_to_schema
 from daplug_core.dict_merger import merge
 from daplug_core.base_adapter import BaseAdapter
+
+from daplug_ddb.prefixer import DynamodbPrefixer
+from daplug_ddb.types import DynamoItem, DynamoItems
 from .exception import BatchItemException
 
 
