@@ -6,7 +6,7 @@ commands:
     setup-artifacts:
         steps:
             - run: mkdir ./coverage && mkdir ./coverage/grpc && mkdir ./coverage/lint && mkdir ./coverage/reports && mkdir ./coverage/pretty && mkdir ./coverage/typing || exit 0
-    python-test-report:
+    run-tests:
         steps:
             - run: 
                 command: pipenv run test_ci
@@ -24,6 +24,11 @@ commands:
                 path: ./coverage
             - store_test_results:
                 path: ./coverage/reports/junit.xml
+    sync-packaging:
+        steps:
+            - run:
+                  name: Sync packaging metadata
+                  command: pipenv run pipenv-setup sync
     pypi-setup:
         steps:
             - run: echo -e "[pypi]" >> ~/.pypirc
@@ -35,10 +40,10 @@ commands:
             - run: python3 setup.py sdist bdist_wheel
             - run: python3 -m pip install --user --upgrade twine
             - run: python3 -m twine upload dist/*
-    mypy-test:
+    typing-check:
         steps:
-            - run: pipenv run mypy
-            - run: pipenv run mypy-report
+            - run: pipenv run type-check
+            - run: pipenv run typing-report
             - store_artifacts:
                 path: ./coverage/typing
     lint-code:
@@ -64,7 +69,7 @@ jobs:
             - attach_workspace:
                 at: ~/project
             - setup-artifacts
-            - mypy-test
+            - typing-check
     test:
         docker:
             - image: cimg/python:3.9.17
@@ -79,7 +84,7 @@ jobs:
             - attach_workspace:
                 at: ~/project
             - setup-artifacts
-            - python-test-report
+            - run-tests
             - sonarcloud/scan
     install-build:
         docker:
@@ -102,6 +107,8 @@ jobs:
                   method: full
             - python/install-packages:
                 pkg-manager: pipenv
+                args: '--dev'
+            - sync-packaging
             - pypi-setup
             - pypi-publish
 workflows:

@@ -16,7 +16,6 @@ from .exception import BatchItemException
 
 
 class DynamodbAdapter(BaseAdapter):
-    """Implements DynamoDB CRUD operations with schema normalization."""
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
@@ -31,8 +30,6 @@ class DynamodbAdapter(BaseAdapter):
 
     @property
     def prefixing_enabled(self) -> bool:
-        """Returns True when adapter-level prefix config has been supplied."""
-
         return bool(self._default_prefix_config)
 
     def create(self, **kwargs: Any) -> DynamoItem:
@@ -96,7 +93,7 @@ class DynamodbAdapter(BaseAdapter):
             else payload
         )
         result_item = response_item if isinstance(response_item, dict) else payload
-        super().publish("create", result_item, **kwargs)
+        super().publish(result_item, **kwargs)
         return result_item
 
     def insert(self, **kwargs: Any) -> DynamoItem:
@@ -119,7 +116,7 @@ class DynamodbAdapter(BaseAdapter):
             else payload
         )
         result_item = response_item if isinstance(response_item, dict) else payload
-        super().publish("create", result_item, **kwargs)
+        super().publish(result_item, **kwargs)
         return result_item
 
     def batch_insert(self, **kwargs: Any) -> None:
@@ -153,7 +150,7 @@ class DynamodbAdapter(BaseAdapter):
             cleaned_item = cleaned if isinstance(cleaned, dict) else result
         else:
             cleaned_item = result
-        super().publish("delete", cleaned_item, **kwargs)
+        super().publish(cleaned_item, **kwargs)
         return cleaned_item if isinstance(cleaned_item, dict) else {}
 
     def batch_delete(self, **kwargs: Any) -> None:
@@ -206,7 +203,7 @@ class DynamodbAdapter(BaseAdapter):
         put_kwargs = self.__build_put_kwargs(original_value, data_to_store)
         self.table.put_item(**put_kwargs)
         cleaned_item = self.__clean_for_response(prefixer, data_to_store)
-        super().publish("update", cleaned_item, **kwargs)
+        super().publish(cleaned_item, **kwargs)
         return cleaned_item
 
     @lru_cache(maxsize=128)

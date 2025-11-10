@@ -437,6 +437,14 @@ cd daplug-ddb
 pipenv install --dev
 ```
 
+### Sync Packaging Metadata
+
+Keep `setup.py` aligned with the locked Pipenv dependencies before publishing.
+
+```bash
+pipenv run pipenv-setup sync
+```
+
 ### Run Tests
 
 ```bash

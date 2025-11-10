@@ -180,11 +180,8 @@ def test_base_adapter_merges_sns_attributes() -> None:
         sns_attributes={"custom": "value", "override": "adapter"},
     )
 
-    formatted = base.create_format_attributes(
-        "update", {"call": "value", "override": "call"}
-    )
+    formatted = base.create_format_attributes({"call": "value", "override": "call"})
 
-    assert formatted["operation"]["StringValue"] == "update"
     assert formatted["custom"]["StringValue"] == "value"
     assert formatted["call"]["StringValue"] == "value"
     assert formatted["override"]["StringValue"] == "call"
@@ -204,7 +201,6 @@ def test_publish_uses_provided_sns_attributes() -> None:
     assert publish.call_count == 1
     attributes = publish.call_args.kwargs["attributes"]
     assert attributes["schema"]["StringValue"] == SCHEMA_ARGS["schema"]
-    assert attributes["operation"]["StringValue"] == "create"
 
 
 def test_publish_merges_adapter_and_call_attributes() -> None:
@@ -225,7 +221,6 @@ def test_publish_merges_adapter_and_call_attributes() -> None:
     attributes = publish.call_args.kwargs["attributes"]
     assert attributes["source"]["StringValue"] == "adapter"
     assert attributes["override"]["StringValue"] == "call"
-    assert attributes["operation"]["StringValue"] == "create"
 
 
 def test_insert_requires_hash_key() -> None:
