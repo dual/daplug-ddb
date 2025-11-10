@@ -26,9 +26,7 @@ commands:
                 path: ./coverage/reports/junit.xml
     sync-packaging:
         steps:
-            - run:
-                  name: Sync packaging metadata
-                  command: pipenv run pipenv-setup sync
+            - run: pipenv run setup-sync
     pypi-setup:
         steps:
             - run: echo -e "[pypi]" >> ~/.pypirc
