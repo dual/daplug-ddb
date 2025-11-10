@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Sequence
 
-from daplug_ddb.types import DynamoItem
+from daplug_ddb.types import DynamoItem, TransformRule
 
 
 class DynamodbPrefixer:
@@ -73,26 +73,14 @@ class DynamodbPrefixer:
         if not self.enabled or not isinstance(payload, dict):
             return payload
         updated = deepcopy(payload)
-        if isinstance(updated.get("Items"), list):
-            items_value = self.apply_items(updated["Items"], add=add)
-            if isinstance(items_value, list):
-                updated["Items"] = items_value
-        if isinstance(updated.get("Item"), dict):
-            item_value = self.apply_item(updated["Item"], add=add)
-            if isinstance(item_value, dict):
-                updated["Item"] = item_value
-        if isinstance(updated.get("LastEvaluatedKey"), dict):
-            last_key = self.apply_key(updated["LastEvaluatedKey"], add=add)
-            if isinstance(last_key, dict):
-                updated["LastEvaluatedKey"] = last_key
-        if isinstance(updated.get("Attributes"), dict):
-            attrs_value = self.apply_item(updated["Attributes"], add=add)
-            if isinstance(attrs_value, dict):
-                updated["Attributes"] = attrs_value
-        if isinstance(updated.get("Key"), dict):
-            key_value = self.apply_key(updated["Key"], add=add)
-            if isinstance(key_value, dict):
-                updated["Key"] = key_value
+        rules: Sequence[TransformRule] = (
+            ("Items", list, self.__transform_items),
+            ("Item", dict, self.__transform_item),
+            ("LastEvaluatedKey", dict, self.__transform_key),
+            ("Attributes", dict, self.__transform_item),
+            ("Key", dict, self.__transform_key),
+        )
+        self.__apply_response_rules(updated, rules, add)
         return updated
 
     # ------------------------------------------------------------------
@@ -181,3 +169,20 @@ class DynamodbPrefixer:
         if value.startswith(prefix):
             return value[len(prefix):]
         return value
+
+    def __apply_response_rules(self, payload: Dict[str, Any], rules: Sequence[TransformRule], add: bool,) -> None:
+        for field, expected_type, transformer in rules:
+            value = payload.get(field)
+            if isinstance(value, expected_type):
+                transformed = transformer(value, add)
+                if isinstance(transformed, expected_type):
+                    payload[field] = transformed
+
+    def __transform_items(self, value: Any, add: bool) -> Optional[Any]:
+        return self.apply_items(value, add=add)
+
+    def __transform_item(self, value: Any, add: bool) -> Optional[Any]:
+        return self.apply_item(value, add=add)
+
+    def __transform_key(self, value: Any, add: bool) -> Optional[Any]:
+        return self.apply_key(value, add=add)
