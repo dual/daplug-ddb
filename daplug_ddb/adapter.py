@@ -19,13 +19,13 @@ class DynamodbAdapter(BaseAdapter):
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
-        self.table = self.__get_dynamo_table(kwargs["table"], kwargs.get("endpoint"))
-        self.schema_file: Optional[str] = kwargs.get("schema_file")
-        self.hash_key: Optional[str] = kwargs.get("hash_key")
-        self.idempotence_key: Optional[str] = kwargs.get("idempotence_key")
-        self.raise_idempotence_error: bool = kwargs.get("raise_idempotence_error", False)
-        self.idempotence_use_latest: bool = kwargs.get("idempotence_use_latest", False)
-        self._prefix_keys = ("hash_key", "hash_prefix", "range_key", "range_prefix")
+        self.table = self.__get_dynamo_table(kwargs['table'], kwargs.get('endpoint'))
+        self.schema_file: Optional[str] = kwargs.get('schema_file')
+        self.hash_key: Optional[str] = kwargs.get('hash_key')
+        self.idempotence_key: Optional[str] = kwargs.get('idempotence_key')
+        self.raise_idempotence_error: bool = kwargs.get('raise_idempotence_error', False)
+        self.idempotence_use_latest: bool = kwargs.get('idempotence_use_latest', False)
+        self._prefix_keys = ('hash_key', 'hash_prefix', 'range_key', 'range_prefix')
         self._default_prefix_config = self.__extract_prefix_config(kwargs)
 
     @property
@@ -33,14 +33,14 @@ class DynamodbAdapter(BaseAdapter):
         return bool(self._default_prefix_config)
 
     def create(self, **kwargs: Any) -> DynamoItem:
-        if kwargs.get("operation") == "overwrite":
+        if kwargs.get('operation') == 'overwrite':
             return self.overwrite(**kwargs)
         return self.insert(**kwargs)
 
     def read(self, **kwargs: Any) -> Union[DynamoItem, DynamoItems, Dict[str, Any]]:
-        if kwargs.get("operation") == "query":
+        if kwargs.get('operation') == 'query':
             return self.query(**kwargs)
-        if kwargs.get("operation") == "scan":
+        if kwargs.get('operation') == 'scan':
             return self.scan(**kwargs)
         return self.get(**kwargs)
 
@@ -49,18 +49,18 @@ class DynamodbAdapter(BaseAdapter):
         request_args = self.__prepare_request_arguments(prefixer, kwargs)
         response = self.table.scan(**request_args)
         if not prefixer.enabled:
-            return response if kwargs.get("raw_scan") else response.get("Items", [])
+            return response if kwargs.get('raw_scan') else response.get('Items', [])
         cleaned_response = prefixer.apply_response(response, add=False)
-        if kwargs.get("raw_scan"):
+        if kwargs.get('raw_scan'):
             return cleaned_response if cleaned_response is not None else response
         cleaned = cleaned_response or {}
-        return cleaned.get("Items", [])
+        return cleaned.get('Items', [])
 
     def get(self, **kwargs: Any) -> DynamoItem:
         prefixer = self.__build_prefixer(kwargs)
         request_args = self.__prepare_request_arguments(prefixer, kwargs)
         result: Dict[str, Any] = self.table.get_item(**request_args)
-        item = result.get("Item", {})
+        item = result.get('Item', {})
         if not prefixer.enabled:
             return item if isinstance(item, dict) else {}
         cleaned = prefixer.apply_item(item, add=False)
@@ -71,15 +71,15 @@ class DynamodbAdapter(BaseAdapter):
         request_args = self.__prepare_request_arguments(prefixer, kwargs)
         response = self.table.query(**request_args)
         if not prefixer.enabled:
-            return response if kwargs.get("raw_query") else response.get("Items", [])
+            return response if kwargs.get('raw_query') else response.get('Items', [])
         cleaned_response = prefixer.apply_response(response, add=False)
-        if kwargs.get("raw_query"):
+        if kwargs.get('raw_query'):
             return cleaned_response if cleaned_response is not None else response
         cleaned = cleaned_response or {}
-        return cleaned.get("Items", [])
+        return cleaned.get('Items', [])
 
     def overwrite(self, **kwargs: Any) -> DynamoItem:
-        payload = self.__map_with_schema(kwargs["data"], kwargs)
+        payload = self.__map_with_schema(kwargs['data'], kwargs)
         prefixer = self.__build_prefixer(kwargs)
         item_to_store = (
             prefixer.apply_item(payload, add=True)
@@ -97,7 +97,7 @@ class DynamodbAdapter(BaseAdapter):
         return result_item
 
     def insert(self, **kwargs: Any) -> DynamoItem:
-        payload = self.__map_with_schema(kwargs["data"], kwargs)
+        payload = self.__map_with_schema(kwargs['data'], kwargs)
         prefixer = self.__build_prefixer(kwargs)
         item_to_store = (
             prefixer.apply_item(payload, add=True)
@@ -105,7 +105,7 @@ class DynamodbAdapter(BaseAdapter):
             else payload
         )
         if not self.hash_key:
-            raise ValueError("insert requires hash_key to be configured")
+            raise ValueError('insert requires hash_key to be configured')
         self.table.put_item(
             Item=item_to_store,
             ConditionExpression=Attr(self.hash_key).not_exists(),
@@ -120,11 +120,11 @@ class DynamodbAdapter(BaseAdapter):
         return result_item
 
     def batch_insert(self, **kwargs: Any) -> None:
-        data = kwargs["data"]
-        batch_size: int = kwargs.get("batch_size", 25)
+        data = kwargs['data']
+        batch_size: int = kwargs.get('batch_size', 25)
 
         if not isinstance(data, list):
-            raise BatchItemException("Batched data must be contained within a list")
+            raise BatchItemException('Batched data must be contained within a list')
         mapped_items = [self.__map_with_schema(item, kwargs) for item in data]
         prefixer = self.__build_prefixer(kwargs)
         batched_data: Iterable[DynamoItems] = (
@@ -143,8 +143,8 @@ class DynamodbAdapter(BaseAdapter):
     def delete(self, **kwargs: Any) -> DynamoItem:
         prefixer = self.__build_prefixer(kwargs)
         request_args = self.__prepare_request_arguments(prefixer, kwargs)
-        request_args["ReturnValues"] = "ALL_OLD"
-        result = self.table.delete_item(**request_args).get("Attributes", {})
+        request_args['ReturnValues'] = 'ALL_OLD'
+        result = self.table.delete_item(**request_args).get('Attributes', {})
         if prefixer.enabled:
             cleaned = prefixer.apply_item(result, add=False)
             cleaned_item = cleaned if isinstance(cleaned, dict) else result
@@ -154,12 +154,12 @@ class DynamodbAdapter(BaseAdapter):
         return cleaned_item if isinstance(cleaned_item, dict) else {}
 
     def batch_delete(self, **kwargs: Any) -> None:
-        batch_size: int = kwargs.get("batch_size", 25)
-        if not isinstance(kwargs["data"], list):
-            raise BatchItemException("Batched data must be contained within a list")
+        batch_size: int = kwargs.get('batch_size', 25)
+        if not isinstance(kwargs['data'], list):
+            raise BatchItemException('Batched data must be contained within a list')
         batched_data: Iterable[DynamoItems] = (
-            kwargs["data"][pos: pos + batch_size]
-            for pos in range(0, len(kwargs["data"]), batch_size)
+            kwargs['data'][pos: pos + batch_size]
+            for pos in range(0, len(kwargs['data']), batch_size)
         )
         prefixer = self.__build_prefixer(kwargs)
         with self.table.batch_writer() as writer:
@@ -175,7 +175,7 @@ class DynamodbAdapter(BaseAdapter):
     def update(self, **kwargs: Any) -> DynamoItem:
         prefixer = self.__build_prefixer(kwargs)
         original_data = self.__get_original_data(**kwargs)
-        merged_data = merge(original_data, kwargs["data"], **kwargs)
+        merged_data = merge(original_data, kwargs['data'], **kwargs)
         payload = self.__map_with_schema(merged_data, kwargs)
         if prefixer.enabled:
             prefixed_item = prefixer.apply_item(payload, add=True)
@@ -208,24 +208,22 @@ class DynamodbAdapter(BaseAdapter):
 
     @lru_cache(maxsize=128)
     def __get_dynamo_table(self, table: str, endpoint: Optional[str] = None) -> Any:
-        return boto3.resource("dynamodb", endpoint_url=endpoint).Table(table)
+        return boto3.resource('dynamodb', endpoint_url=endpoint).Table(table)
 
     def __build_put_kwargs(self, original_value: Any, data_to_store: Dict[str, Any]) -> Dict[str, Any]:
-        put_kwargs: Dict[str, Any] = {"Item": data_to_store}
+        put_kwargs: Dict[str, Any] = {'Item': data_to_store}
         if not self.idempotence_key:
             return put_kwargs
         if original_value is None:
             if self.raise_idempotence_error:
-                raise ValueError(
-                    f"idempotence key '{self.idempotence_key}' not found in original item"
-                )
+                raise ValueError(f'idempotence key {self.idempotence_key} not found in original item')
             return put_kwargs
         if (
             original_value != data_to_store.get(self.idempotence_key)
             and self.raise_idempotence_error
         ):
-            raise ValueError("update: idempotence key value has changed")
-        put_kwargs["ConditionExpression"] = Attr(self.idempotence_key).eq(original_value)
+            raise ValueError('update: idempotence key value has changed')
+        put_kwargs['ConditionExpression'] = Attr(self.idempotence_key).eq(original_value)
         return put_kwargs
 
     def __clean_for_response(self, prefixer: DynamodbPrefixer, item: Dict[str, Any]) -> Dict[str, Any]:
@@ -235,21 +233,21 @@ class DynamodbAdapter(BaseAdapter):
         return cleaned if isinstance(cleaned, dict) else item
 
     def __get_original_data(self, **kwargs: Any) -> DynamoItem:
-        if kwargs["operation"] == "get":
+        if kwargs.get('operation') == 'get' or 'key' in kwargs.get('query', {}):
             original_data = self.get(**kwargs)
         else:
             query_result = self.query(**kwargs)
             if isinstance(query_result, list):
                 items = query_result
             elif isinstance(query_result, dict):
-                items = query_result.get("Items", [])
+                items = query_result.get('Items', [])
             else:
                 items = []
             if not items:
-                raise ValueError("update: no data found to update")
+                raise ValueError('update: no data found to update')
             original_data = items[0]
         if not original_data:
-            raise ValueError("update: no data found to update")
+            raise ValueError('update: no data found to update')
         return original_data
 
     def __should_use_latest(self, original_value: Any, new_value: Any) -> bool:
@@ -261,12 +259,12 @@ class DynamodbAdapter(BaseAdapter):
             original_dt = datetime.fromisoformat(str(original_value))
             new_dt = datetime.fromisoformat(str(new_value))
         except ValueError as exc:
-            raise ValueError("idempotence_use_latest requires ISO date-compatible values") from exc
+            raise ValueError('idempotence_use_latest requires ISO date-compatible values') from exc
         return original_dt > new_dt
 
     def __map_with_schema(self, data: Dict[str, Any], call_kwargs: Dict[str, Any]) -> Dict[str, Any]:
-        schema_file = call_kwargs.get("schema_file") or self.schema_file
-        schema_name = call_kwargs.get("schema")
+        schema_file = call_kwargs.get('schema_file') or self.schema_file
+        schema_name = call_kwargs.get('schema')
         if schema_file and schema_name:
             return map_to_schema(data, schema_file, schema_name)
         return deepcopy(data)
@@ -281,21 +279,16 @@ class DynamodbAdapter(BaseAdapter):
 
     def __extract_prefix_config(self, source: Dict[str, Any]) -> Dict[str, Any]:
         config: Dict[str, Any] = {}
-        for key in ("hash_key", "hash_prefix", "range_key", "range_prefix"):
+        for key in ('hash_key', 'hash_prefix', 'range_key', 'range_prefix'):
             value = source.get(key)
             if value is not None:
                 config[key] = value
         return config
 
-    def __prepare_request_arguments(
-        self,
-        prefixer: DynamodbPrefixer,
-        call_kwargs: Dict[str, Any],
-    ) -> Dict[str, Any]:
-        raw_query = call_kwargs.get("query") or {}
-        if not isinstance(raw_query, dict):
+    def __prepare_request_arguments(self, prefixer: DynamodbPrefixer, call_kwargs: Dict[str, Any]) -> Dict[str, Any]:
+        if not isinstance(call_kwargs.get('query'), dict):
             return {}
         if prefixer.enabled:
-            transformed = prefixer.apply_request(raw_query, add=True)
+            transformed = prefixer.apply_request(call_kwargs['query'], add=True)
             return transformed if isinstance(transformed, dict) else {}
-        return deepcopy(raw_query)
+        return deepcopy(call_kwargs['query'])
