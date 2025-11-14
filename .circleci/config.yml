@@ -51,6 +51,25 @@ commands:
             - run: pipenv run pylint-json2html ./coverage/lint/pylint_report.json -o ./coverage/lint/pylint_report.html || exit 0
             - store_artifacts:
                 path: ./coverage/lint
+    python-build-dist:
+        steps:
+            - run: pipenv run python -m pip install --upgrade pip build
+            - run: pipenv run python -m build
+            - run: pipenv requirements --dev > dev-requirements.txt
+    python-test-dist:
+        steps:
+            - run: python -m venv /tmp/package-smoke
+            - run: /tmp/package-smoke/bin/pip install --upgrade pip
+            - run: /tmp/package-smoke/bin/pip install -r dev-requirements.txt
+            - run: /tmp/package-smoke/bin/pip install dist/*.whl
+            - run: /tmp/package-smoke/bin/python -m pytest ~/project/tests/unit
+            - run:
+                environment:
+                    AWS_ACCESS_KEY_ID: test
+                    AWS_SECRET_ACCESS_KEY: test
+                    AWS_DEFAULT_REGION: us-east-2
+                working_directory: /tmp
+                command: /tmp/package-smoke/bin/python -m pytest ~/project/tests/integration
 jobs:
     lint:
         docker:
@@ -109,6 +128,21 @@ jobs:
             - sync-packaging
             - pypi-setup
             - pypi-publish
+    package-smoke-test:
+        docker:
+            - image: cimg/python:3.9.17
+            -
+                image: amazon/dynamodb-local
+                command: -jar DynamoDBLocal.jar -inMemory -port 4000
+                environment:
+                    AWS_ACCESS_KEY_ID: test
+                    AWS_SECRET_ACCESS_KEY: test
+                    AWS_DEFAULT_REGION: us-east-2
+        steps:
+            - attach_workspace:
+                at: ~/project
+            - python-build-dist
+            - python-test-dist
 workflows:
     install-build-publish-workflow:
         jobs:
@@ -134,5 +168,8 @@ workflows:
             - test:
                 context:
                     - sonarcloud
+                requires:
+                    - install-build
+            - package-smoke-test:
                 requires:
                     - install-build
