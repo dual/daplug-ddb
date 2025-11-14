@@ -22,8 +22,8 @@ setup(
     packages=find_packages(),
     python_requires=">=3.9",
     install_requires=[
-        "boto3==1.40.69; python_version >= '3.9'",
-        "botocore==1.40.69; python_version >= '3.9'",
+        "boto3==1.40.74; python_version >= '3.9'",
+        "botocore==1.40.74; python_version >= '3.9'",
         "daplug-core==1.0.0b5; python_version >= '3.9'",
         "jmespath==1.0.1; python_version >= '3.7'",
         "jsonref==1.1.0; python_version >= '3.7'",

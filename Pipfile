@@ -8,9 +8,6 @@ python_version = "3.9.17"
 
 [packages]
 boto3 = "*"
-jsonref = "*"
-pyyaml = "*"
-simplejson = "*"
 daplug-core = "==1.0.0b5"
 
 [dev-packages]
