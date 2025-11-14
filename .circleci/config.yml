@@ -64,6 +64,10 @@ commands:
             - run: /tmp/package-smoke/bin/pip install dist/*.whl
             - run: /tmp/package-smoke/bin/python -m pytest ~/project/tests/unit
             - run:
+                command: |
+                    mkdir -p /tmp/tests
+                    cp ~/project/tests/openapi.yml /tmp/tests/openapi.yml
+            - run:
                 environment:
                     AWS_ACCESS_KEY_ID: test
                     AWS_SECRET_ACCESS_KEY: test
