@@ -29,7 +29,7 @@ setup(
         "jsonref==1.1.0; python_version >= '3.7'",
         "python-dateutil==2.9.0.post0; python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2'",
         "pyyaml==6.0.3; python_version >= '3.8'",
-        "s3transfer==0.14.0; python_version >= '3.9'",
+        "s3transfer==0.16.0; python_version >= '3.9'",
         "simplejson==3.20.2; python_version >= '2.5' and python_version not in '3.0, 3.1, 3.2'",
         "six==1.17.0; python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2'",
         "urllib3==1.26.20; python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3, 3.4, 3.5'"
