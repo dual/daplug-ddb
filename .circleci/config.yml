@@ -77,7 +77,7 @@ commands:
 jobs:
     lint:
         docker:
-            - image: cimg/python:3.9.17
+            - image: cimg/python:3.10.14
         steps:
             - attach_workspace:
                 at: ~/project
@@ -85,7 +85,7 @@ jobs:
             - lint-code
     type-check:
         docker:
-            - image: cimg/python:3.9.17
+            - image: cimg/python:3.10.14
         steps:
             - attach_workspace:
                 at: ~/project
@@ -93,7 +93,7 @@ jobs:
             - typing-check
     test:
         docker:
-            - image: cimg/python:3.9.17
+            - image: cimg/python:3.10.14
             -
                 image: amazon/dynamodb-local
                 command: -jar DynamoDBLocal.jar -inMemory -port 4000
@@ -109,7 +109,7 @@ jobs:
             - sonarcloud/scan
     install-build:
         docker:
-            - image: cimg/python:3.9.17
+            - image: cimg/python:3.10.14
         steps:
             - checkout:
                   method: full
@@ -122,7 +122,7 @@ jobs:
                     - ./*
     install-build-publish:
         docker:
-            - image: cimg/python:3.9.17
+            - image: cimg/python:3.10.14
         steps:
             - checkout:
                   method: full
@@ -134,7 +134,7 @@ jobs:
             - pypi-publish
     package-smoke-test:
         docker:
-            - image: cimg/python:3.9.17
+            - image: cimg/python:3.10.14
             -
                 image: amazon/dynamodb-local
                 command: -jar DynamoDBLocal.jar -inMemory -port 4000

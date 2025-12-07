@@ -4,7 +4,7 @@ verify_ssl = true
 name = "pypi"
 
 [requires]
-python_version = "3.9.17"
+python_version = "3.10.14"
 
 [packages]
 boto3 = "*"
@@ -17,8 +17,6 @@ pylint = "*"
 pytest = "*"
 pytest-cov = "*"
 pytest-html = "*"
-pipenv-setup = "*"
-vistir = "==0.5.1"
 
 [scripts]
 lint = "pylint --fail-under 10 daplug_ddb"
@@ -28,4 +26,4 @@ test = "pytest tests/unit"
 test_ci = "pytest"
 integrations = "bash -c 'docker compose -f tests/integrations/docker-compose.yml up -d dynamodb-local >/dev/null; cleanup() { docker compose -f tests/integrations/docker-compose.yml down >/dev/null; }; trap cleanup EXIT INT TERM; AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_DEFAULT_REGION=us-east-2 pytest tests/integration'"
 coverage = "coverage run --source daplug_ddb -m pytest tests --cov=daplug_ddb --junitxml ./coverage/reports/junit.xml --cov-report xml:./coverage/reports/cov.xml --html=./coverage/reports/index.html --self-contained-html --cov-report html:./coverage/pretty -p no:warnings -o log_cli=true"
-setup-sync = "pipenv-setup sync"
+setup-sync = "python tools/sync_setup_requires.py"
