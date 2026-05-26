@@ -8,7 +8,7 @@ python_version = "3.10.14"
 
 [packages]
 boto3 = "*"
-daplug-core = "==1.0.0b5"
+daplug-core = "==1.0.0b7"
 
 [dev-packages]
 mypy = "*"

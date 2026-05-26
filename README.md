@@ -285,6 +285,16 @@ adapter.update(
     schema="AuditModel",
     sns_attributes={"env": "staging"},
 )
+
+# skip the SNS publish entirely for this call
+adapter.create(data=item, schema="AuditModel", publish=False)
+
+# publish a different payload than what was written (e.g. a thinner event shape)
+adapter.update(
+    data=item,
+    schema="AuditModel",
+    publish_data={"id": item["audit_id"], "event": "updated"},
+)
 ```
 
 ## 📚 Method Reference

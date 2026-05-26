@@ -436,6 +436,24 @@ def test_overwrite_returns_unprefixed_payload() -> None:
     assert publish.call_count == 1
 
 
+def test_insert_with_publish_false_skips_sns() -> None:
+    table = StubTable()
+    adapter = _create_adapter(table, schema_file=None)
+    with patch.object(adapter.publisher, "publish") as publish:
+        adapter.insert(data=build_test_item(), publish=False)
+    assert publish.call_count == 0
+
+
+def test_insert_with_publish_data_uses_override_payload() -> None:
+    table = StubTable()
+    adapter = _create_adapter(table, schema_file=None)
+    override = {"event": "custom-shape"}
+    with patch.object(adapter.publisher, "publish") as publish:
+        adapter.insert(data=build_test_item(), publish_data=override)
+    assert publish.call_count == 1
+    assert publish.call_args.kwargs["data"] == override
+
+
 def test_batch_insert_applies_prefixes_and_batches() -> None:
     table = StubTable()
     adapter = _create_adapter(table)
